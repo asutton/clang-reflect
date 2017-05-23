@@ -24,3 +24,6 @@ on the Clang development mailing list:
 
 If you find a bug in Clang, please file it in the LLVM bug tracker:
   http://llvm.org/bugs/
+
+llvm: a30e2b308bb7d8b8f5d8f0924bdd0908204e2fe2
+libcxx: 64182a5877865cde2538c6038f98e3df33c93a03
