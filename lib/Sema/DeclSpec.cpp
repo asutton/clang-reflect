@@ -967,6 +967,21 @@ bool DeclSpec::SetConstexprSpec(SourceLocation Loc, const char *&PrevSpec,
   return false;
 }
 
+bool DeclSpec::SetImmediateSpec(SourceLocation Loc, const char *&PrevSpec,
+                                unsigned &DiagID) {
+  // 'immediate immediate' is ok, but warn as this is likely not what the user
+  // intended. Note tht 'immediate constexpr' and 'constexpr immediate' are
+  // perfectly acceptable.
+  if (Immediate_specified) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "immediate";
+    return true;
+  }
+  Immediate_specified = true;
+  ImmediateLoc = Loc;
+  return false;
+}
+
 bool DeclSpec::SetConceptSpec(SourceLocation Loc, const char *&PrevSpec,
                               unsigned &DiagID) {
   if (Concept_specified) {

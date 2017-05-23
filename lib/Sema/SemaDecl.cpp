@@ -4092,15 +4092,16 @@ Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
         << getLangOpts().CPlusPlus1z;
 
   if (DS.isConstexprSpecified()) {
-    // C++0x [dcl.constexpr]p1: constexpr can only be applied to declarations
-    // and definitions of functions and variables.
-    if (Tag)
-      Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_tag)
-          << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType());
-    else
-      Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_no_declarators);
-    // Don't emit warnings after this error.
+    // [Meta] The immediate specifier only applies to functions.
+    Diag(DS.getConceptSpecLoc(), diag::err_immediate_wrong_decl_kind);
     return TagD;
+  }
+
+  if (DS.isImmediateSpecified()) {
+    // immediate can only be applied to functions.
+    Diag(DS.getImmediateSpecLoc(), diag::err_constexpr_no_declarators);
+    return TagD;
+
   }
 
   if (DS.isConceptSpecified()) {
@@ -6419,6 +6420,13 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setTemplateParameterListsInfo(
           Context, TemplateParamLists.drop_back(VDTemplateParamLists));
 
+    if (D.getDeclSpec().isImmediateSpecified()) {
+      // [Meta]: The 'immediate' specifier only applies to functions.
+      Diag(D.getDeclSpec().getImmediateSpecLoc(), 
+           diag::err_immediate_wrong_decl_kind);
+      NewVD->setInvalidDecl(true);
+    }
+
     if (D.getDeclSpec().isConstexprSpecified()) {
       NewVD->setConstexpr(true);
       // C++1z [dcl.spec.constexpr]p1:
@@ -8159,6 +8167,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     bool isVirtual = D.getDeclSpec().isVirtualSpecified();
     bool isExplicit = D.getDeclSpec().isExplicitSpecified();
     bool isConstexpr = D.getDeclSpec().isConstexprSpecified();
+    bool isImmediate = D.getDeclSpec().isImmediateSpecified();
     bool isConcept = D.getDeclSpec().isConceptSpecified();
     isFriend = D.getDeclSpec().isFriendSpecified();
     if (isFriend && !isInline && D.isFunctionDefinition()) {
@@ -8359,6 +8368,16 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       }
     }
 
+    if (isImmediate) {
+      // [Meta] An immediate function is implicitly constexpr.
+      isConstexpr = true;
+      if (!NewFD->isConstexpr()) {
+        NewFD->setConstexpr(true);
+        NewFD->setConstexprSpecified(false);
+      } 
+      NewFD->setImmediate(true);
+    }
+
     if (isConstexpr) {
       // C++11 [dcl.constexpr]p2: constexpr functions and constexpr constructors
       // are implicitly inline.
@@ -8367,8 +8386,12 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       // C++11 [dcl.constexpr]p3: functions declared constexpr are required to
       // be either constructors or to return a literal type. Therefore,
       // destructors cannot be declared constexpr.
-      if (isa<CXXDestructorDecl>(NewFD))
-        Diag(D.getDeclSpec().getConstexprSpecLoc(), diag::err_constexpr_dtor);
+      if (isa<CXXDestructorDecl>(NewFD)) {
+        if (D.getDeclSpec().isConstexprSpecified())
+          Diag(D.getDeclSpec().getConstexprSpecLoc(), diag::err_constexpr_dtor);
+        else
+          Diag(D.getDeclSpec().getImmediateSpecLoc(), diag::err_immediate_dtor);
+      }
     }
 
     if (isConcept) {
@@ -8433,6 +8456,13 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
         Diag(D.getDeclSpec().getFriendSpecLoc(),
              diag::err_concept_decl_invalid_specifiers)
             << 1 << 2;
+        NewFD->setInvalidDecl(true);
+      }
+
+      if (isImmediate) {
+        Diag(D.getDeclSpec().getImmediateSpecLoc(),
+             diag::err_concept_decl_invalid_specifiers)
+            << 1 << 4;
         NewFD->setInvalidDecl(true);
       }
 

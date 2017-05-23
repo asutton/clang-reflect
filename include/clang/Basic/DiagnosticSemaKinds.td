@@ -2324,7 +2324,7 @@ def err_function_concept_exception_spec : Error<
   "function concept cannot have exception specification">;
 def err_concept_decl_invalid_specifiers : Error<
   "%select{variable|function}0 concept cannot be declared "
-  "'%select{thread_local|inline|friend|constexpr}1'">;
+  "'%select{thread_local|inline|friend|constexpr|immediate}1'">;
 def err_function_concept_with_params : Error<
   "function concept cannot have any parameters">;
 def err_function_concept_bool_ret : Error<
@@ -2340,6 +2340,11 @@ def err_concept_specialized : Error<
 
 def err_template_different_associated_constraints : Error<
   "associated constraints differ in template redeclaration">;
+
+// [Meta]
+def err_immediate_wrong_decl_kind : Error<
+  "'immediate' can only appear on the definition of a function">;
+def err_immediate_dtor : Error<"destructor cannot be marked 'immediate'">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<
