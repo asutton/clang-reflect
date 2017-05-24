@@ -325,6 +325,11 @@ void ASTStmtWriter::VisitCoyieldExpr(CoyieldExpr *S) {
   llvm_unreachable("unimplemented");
 }
 
+void ASTStmtWriter::VisitCXXConstantExpr(CXXConstantExpr *S) {
+  // FIXME: Implement serialization.
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtWriter::VisitCapturedStmt(CapturedStmt *S) {
   VisitStmt(S);
   // NumCaptures

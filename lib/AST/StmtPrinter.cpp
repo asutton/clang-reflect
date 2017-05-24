@@ -2487,6 +2487,10 @@ void StmtPrinter::VisitCoyieldExpr(CoyieldExpr *S) {
   PrintExpr(S->getOperand());
 }
 
+void StmtPrinter::VisitCXXConstantExpr(CXXConstantExpr *S) {
+  PrintExpr(S->getExpression());
+}
+
 // Obj-C
 
 void StmtPrinter::VisitObjCStringLiteral(ObjCStringLiteral *Node) {

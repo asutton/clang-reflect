@@ -391,6 +391,11 @@ void ASTStmtReader::VisitCoyieldExpr(CoyieldExpr *S) {
   llvm_unreachable("unimplemented");
 }
 
+void ASTStmtReader::VisitCXXConstantExpr(CXXConstantExpr *S) {
+  // FIXME: Implement serialization.
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtReader::VisitCapturedStmt(CapturedStmt *S) {
   VisitStmt(S);
   Record.skipInts(1);

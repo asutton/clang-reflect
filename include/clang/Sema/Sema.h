@@ -8315,6 +8315,12 @@ public:
   void CheckCompletedCoroutineBody(FunctionDecl *FD, Stmt *&Body);
 
   //===--------------------------------------------------------------------===//
+  // [Meta]
+  //
+
+  ExprResult BuildConstantExpression(Expr *E);
+
+  //===--------------------------------------------------------------------===//
   // OpenCL extensions.
   //
 private:

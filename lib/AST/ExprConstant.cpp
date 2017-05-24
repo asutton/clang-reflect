@@ -10555,6 +10555,9 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
     return CheckICE(cast<CXXDefaultInitExpr>(E)->getExpr(), Ctx);
   case Expr::ChooseExprClass: {
     return CheckICE(cast<ChooseExpr>(E)->getChosenSubExpr(), Ctx);
+  case Expr::CXXConstantExprClass:
+    // A constant expression with integral type is an ICE.
+    return NoDiag();
   }
   }
 

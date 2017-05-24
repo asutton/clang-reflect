@@ -415,6 +415,9 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
 
   case Expr::CoawaitExprClass:
     return ClassifyInternal(Ctx, cast<CoawaitExpr>(E)->getResumeExpr());
+
+  case Expr::CXXConstantExprClass:
+    return ClassifyInternal(Ctx, cast<CXXConstantExpr>(E)->getExpression());
   }
 
   llvm_unreachable("unhandled expression kind in classification");
