@@ -2342,8 +2342,14 @@ def err_template_different_associated_constraints : Error<
   "associated constraints differ in template redeclaration">;
 
 // [Meta]
-def err_immediate_wrong_decl_kind : Error<
-  "'immediate' can only appear on the definition of a function">;
+// FIXME: The err_immediate_tag and err_immediate_no_declarators are dups
+// of constexpr errors. These should be merged.
+def err_immediate_tag : Error<
+  "%select{class|struct|interface|union|enum}0 cannot be marked 'immediate'">;
+def err_immediate_no_declarators : Error<
+  "'immediate' can only be used in function definitions">;
+def err_immediate_var : Error<
+  "variable cannot be marked 'immediate'">;
 def err_immediate_dtor : Error<"destructor cannot be marked 'immediate'">;
 
 // C++11 char16_t/char32_t

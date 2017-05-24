@@ -4781,6 +4781,9 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
     // C++ Concepts TS - concept
   case tok::kw_concept:
 
+    // [Meta] immediate
+  case tok::kw_immediate:
+
     // C11 _Atomic
   case tok::kw__Atomic:
     return true;

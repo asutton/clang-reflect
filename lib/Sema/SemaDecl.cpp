@@ -4091,17 +4091,27 @@ Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
     Diag(DS.getInlineSpecLoc(), diag::err_inline_non_function)
         << getLangOpts().CPlusPlus1z;
 
-  if (DS.isConstexprSpecified()) {
-    // [Meta] The immediate specifier only applies to functions.
-    Diag(DS.getConceptSpecLoc(), diag::err_immediate_wrong_decl_kind);
+  if (DS.isImmediateSpecified()) {
+    // [Meta] 'immediate' can only be applied to functions.
+    if (Tag)
+      Diag(DS.getImmediateSpecLoc(), diag::err_immediate_tag)
+           << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType());
+    else
+      Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_no_declarators);
+      
     return TagD;
   }
 
-  if (DS.isImmediateSpecified()) {
-    // immediate can only be applied to functions.
-    Diag(DS.getImmediateSpecLoc(), diag::err_constexpr_no_declarators);
+  if (DS.isConstexprSpecified()) {
+    // C++0x [dcl.constexpr]p1: constexpr can only be applied to declarations
+    // and definitions of functions and variables.
+    if (Tag)
+      Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_tag)
+          << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType());
+    else
+      Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_no_declarators);
+    // Don't emit warnings after this error.
     return TagD;
-
   }
 
   if (DS.isConceptSpecified()) {
@@ -6422,8 +6432,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
     if (D.getDeclSpec().isImmediateSpecified()) {
       // [Meta]: The 'immediate' specifier only applies to functions.
-      Diag(D.getDeclSpec().getImmediateSpecLoc(), 
-           diag::err_immediate_wrong_decl_kind);
+      Diag(D.getDeclSpec().getImmediateSpecLoc(), diag::err_immediate_var);
       NewVD->setInvalidDecl(true);
     }
 
