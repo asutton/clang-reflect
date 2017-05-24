@@ -22,3 +22,17 @@ struct S2 {} immediate; // expected-error {{struct cannot be marked 'immediate'}
 union U2 {} immediate; // expected-error {{union cannot be marked 'immediate'}}
 enum E2 {} immediate; // expected-error {{enum cannot be marked 'immediate'}}
 
+immediate int x = 0; // expected-error {{variable cannot be marked 'immediate'}}
+
+struct S3 {
+  immediate ~S3() { } // expected-error {{destructor cannot be marked 'immediate'}}
+};
+
+immediate int f1() { return 0; }
+immediate constexpr int f2() { return 0; }
+constexpr immediate int f3() { return 0; }
+immediate immediate int f4() { return 0; } // expected-warning {{duplicate 'immediate' declaration specifier}}
+
+struct S4 {
+  static immediate int f1() { return 1; }
+};
