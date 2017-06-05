@@ -5376,6 +5376,26 @@ ExprResult Sema::ActOnConvertVectorExpr(Expr *E, ParsedType ParsedDestTy,
   return SemaConvertVectorExpr(E, TInfo, BuiltinLoc, RParenLoc);
 }
 
+/// Try to evaluate an immediate function. 
+static ExprResult
+EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
+{
+  // FIXME: If we're in the context of an immediate function, don't bother
+  // checking; it's likely that some arguments to the call involve arguments
+  // to the function.
+
+  SmallVector<PartialDiagnosticAt, 4> Diags;
+  Expr::EvalResult Result;
+  Result.Diag = &Diags;
+  if (E->EvaluateAsAnyValue(Result, SemaRef.Context))
+    return new (SemaRef.Context) CXXConstantExpr(E, std::move(Result.Val));
+
+  for (PartialDiagnosticAt PD : Diags)
+    SemaRef.Diag(PD.first, PD.second);
+  
+  return ExprError();
+}
+
 /// BuildResolvedCallExpr - Build a call to a resolved expression,
 /// i.e. an expression not of \p OverloadTy.  The expression should
 /// unary-convert to an expression of function-pointer or
@@ -5584,6 +5604,14 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   } else {
     if (CheckOtherCall(TheCall, Proto))
       return ExprError();
+  }
+
+  if (FDecl->isImmediate()) {
+    ExprResult Value = EvaluateImmediateFunction(*this, TheCall);
+    if (Value.isInvalid())
+      return ExprError();
+    else if (Value.isUsable())
+      return MaybeBindToTemporary(Value.get());
   }
 
   return MaybeBindToTemporary(TheCall);
