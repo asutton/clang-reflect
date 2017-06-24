@@ -204,8 +204,8 @@ class ScalarExprEmitter
 public:
 
   ScalarExprEmitter(CodeGenFunction &cgf, bool ira=false)
-    : CGF(cgf), Builder(CGF.Builder), IgnoreResultAssign(ira),
-      VMContext(cgf.getLLVMContext()) {
+    : CGF(cgf), Builder(CGF.Builder), 
+      IgnoreResultAssign(ira), VMContext(cgf.getLLVMContext()) {
   }
 
   //===--------------------------------------------------------------------===//
@@ -411,6 +411,10 @@ public:
 
     // Otherwise, assume the mapping is the scalar directly.
     return CGF.getOpaqueRValueMapping(E).getScalarVal();
+  }
+
+  Value *VisitCXXConstantExpr(CXXConstantExpr *E) {
+    return CGF.EmitConstantValue(E->getValue(), E->getType());
   }
 
   // l-values.
@@ -1148,6 +1152,7 @@ void ScalarExprEmitter::EmitBinOpCheck(
 //===----------------------------------------------------------------------===//
 
 Value *ScalarExprEmitter::VisitExpr(Expr *E) {
+  E->dump();
   CGF.ErrorUnsupported(E, "scalar expression");
   if (E->getType()->isVoidType())
     return nullptr;

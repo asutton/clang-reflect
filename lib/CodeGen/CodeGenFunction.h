@@ -1915,6 +1915,8 @@ public:
                             LValueBaseInfo *BaseInfo = nullptr);
   LValue EmitLoadOfPointerLValue(Address Ptr, const PointerType *PtrTy);
 
+  llvm::Constant *EmitConstantValue(const APValue &Value, QualType DestType);
+
   /// CreateTempAlloca - This creates a alloca and inserts it into the entry
   /// block. The caller is responsible for setting an appropriate alignment on
   /// the alloca.
