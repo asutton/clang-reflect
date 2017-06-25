@@ -4864,6 +4864,10 @@ public:
     llvm_unreachable("Return from function from the loop above.");
   }
 
+  bool VisitCXXConstantExpr(const CXXConstantExpr *E) {
+    return DerivedSuccess(E->getValue(), E);
+  }
+
   /// Visit a value which is evaluated, but whose value is ignored.
   void VisitIgnoredValue(const Expr *E) {
     EvaluateIgnoredValue(Info, E);
@@ -8224,7 +8228,7 @@ bool DataRecursiveIntBinOpEvaluator::
 
 void DataRecursiveIntBinOpEvaluator::process(EvalResult &Result) {
   Job &job = Queue.back();
-  
+
   switch (job.Kind) {
     case Job::AnyExprKind: {
       if (const BinaryOperator *Bop = dyn_cast<BinaryOperator>(job.E)) {
