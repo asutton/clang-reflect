@@ -5606,12 +5606,12 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
       return ExprError();
   }
 
+  // If the function is marked immediate, evaluate it now.
   if (FDecl->isImmediate()) {
     ExprResult Value = EvaluateImmediateFunction(*this, TheCall);
     if (Value.isInvalid())
       return ExprError();
-    else if (Value.isUsable())
-      return MaybeBindToTemporary(Value.get());
+    return MaybeBindToTemporary(Value.get());
   }
 
   return MaybeBindToTemporary(TheCall);

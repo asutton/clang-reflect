@@ -6108,7 +6108,7 @@ ExprResult Sema::MaybeBindToTemporary(Expr *E) {
     if (DiagnoseUseOfDecl(Destructor, E->getExprLoc()))
       return ExprError();
 
-    // If destructor is trivial, we can avoid the extra copy.
+    // If destructor is trivial, we can avoid the extra copy. 
     if (Destructor->isTrivial())
       return E;
 

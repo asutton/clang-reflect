@@ -36,3 +36,21 @@ immediate immediate int f4() { return 0; } // expected-warning {{duplicate 'imme
 struct S4 {
   static immediate int f1() { return 1; }
 };
+
+
+namespace Ok {
+  struct S {
+    int a, b;
+  };
+
+  immediate int f1(int n) { return n + 5; }
+  immediate S f2(int a, int b) { return {a, b}; }
+
+
+  // FIXME: Actually verify the output.
+  void g() {
+    int x = f1(3);
+    S s = f2(5, 6);
+  }
+}
+
