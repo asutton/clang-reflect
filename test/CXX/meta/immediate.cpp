@@ -37,7 +37,6 @@ struct S4 {
   static immediate int f1() { return 1; }
 };
 
-
 namespace Ok {
   struct S {
     int a, b;
@@ -53,4 +52,32 @@ namespace Ok {
     S s = f2(5, 6);
   }
 }
+
+
+namespace Bad {
+  immediate int f(int n) { return n; }
+
+  struct S {
+    int n;
+    immediate int f(int m) { 
+      return m + n; // expected-note {{read of non-constexpr variable 's2'}}
+    }
+  };
+
+  void test() {
+    int x = 0; // expected-note {{declared here}} 
+    f(x); // expected-error {{cannot evaluate call to immediate function}} \
+          // expected-note {{read of non-const variable 'x' is not allowed in a constant expression}}
+
+    int y = 1; // expected-note {{declared here}}
+    S s1 {3};
+    s1.f(y); // expected-error {{cannot evaluate call to immediate member function}} \
+             // expected-note {{read of non-const variable 'y' is not allowed in a constant expression}}
+
+    S s2 {3}; // expected-note {{declared here}}
+    s2.f(0); // expected-error {{cannot evaluate call to immediate member function}} \
+             // expected-note {{in call to '&s2->f(0)'}}
+  }
+}
+
 

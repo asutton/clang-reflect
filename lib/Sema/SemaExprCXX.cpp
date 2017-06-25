@@ -7611,16 +7611,20 @@ Sema::BuildConstantExpression(Expr *E)
 static ExprResult
 EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
 {
-  // FIXME: If we're in the context of an immediate function, don't bother
-  // checking; it's likely that some arguments to the call involve arguments
-  // to the function.
-
   SmallVector<PartialDiagnosticAt, 4> Diags;
   Expr::EvalResult Result;
   Result.Diag = &Diags;
   if (E->EvaluateAsAnyValue(Result, SemaRef.Context))
     return new (SemaRef.Context) CXXConstantExpr(E, std::move(Result.Val));
 
+  int Which;
+  if (isa<CXXMemberCallExpr>(E))
+    Which = 1;
+  else
+    Which = 0;
+
+  SemaRef.Diag(E->getLocStart(), diag::err_cannot_evaluate_immedate)
+      << Which << E->getSourceRange();
   for (PartialDiagnosticAt PD : Diags)
     SemaRef.Diag(PD.first, PD.second);
   
@@ -7630,6 +7634,10 @@ EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
 ExprResult
 Sema::FinishCallExpr(Expr *E)
 {
+  // FIXME: If we're in the context of an immediate function, don't bother
+  // checking; it's likely that some arguments to the call involve arguments
+  // to the function.
+
   if (CXXMemberCallExpr *MemCall = dyn_cast<CXXMemberCallExpr>(E)) {
     CXXMethodDecl *Method = MemCall->getMethodDecl();
     if (Method->isImmediate()) {

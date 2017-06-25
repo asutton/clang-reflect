@@ -2350,7 +2350,10 @@ def err_immediate_no_declarators : Error<
   "'immediate' can only be used in function definitions">;
 def err_immediate_var : Error<
   "variable cannot be marked 'immediate'">;
-def err_immediate_dtor : Error<"destructor cannot be marked 'immediate'">;
+def err_immediate_dtor : Error<
+  "destructor cannot be marked 'immediate'">;
+def err_cannot_evaluate_immedate : Error<
+  "cannot evaluate call to immediate %select{function|member function}0">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<
