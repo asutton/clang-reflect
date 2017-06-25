@@ -2926,6 +2926,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case CXXUuidofExprClass:
   case OpaqueValueExprClass:
   case CXXConstantExprClass:
+  case CXXReflectExprClass:
     // These never have a side-effect.
     return false;
 

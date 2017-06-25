@@ -2591,6 +2591,11 @@ private:
                                   UnqualifiedId &Result);
 
   //===--------------------------------------------------------------------===//
+  // Meta
+
+  ExprResult ParseCXXReflectExpression();
+
+  //===--------------------------------------------------------------------===//
   // OpenMP: Directives and clauses.
   /// Parse clauses for '#pragma omp declare simd'.
   DeclGroupPtrTy ParseOMPDeclareSimdClauses(DeclGroupPtrTy Ptr,

@@ -8325,6 +8325,15 @@ public:
 
   ExprResult BuildConstantExpression(Expr *E);
 
+  bool ActOnReflectedId(CXXScopeSpec &SS, SourceLocation IdLoc, 
+                        IdentifierInfo *Id, unsigned &Kind, 
+                        ParsedReflectionPtr &Entity);
+  bool ActOnReflectedType(Declarator &D, unsigned &Kind, 
+                          ParsedReflectionPtr &Entity);
+  ExprResult ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind, 
+                                       ParsedReflectionPtr Entity,
+                                       SourceLocation LP, SourceLocation RP);
+
   //===--------------------------------------------------------------------===//
   // OpenCL extensions.
   //

@@ -2355,6 +2355,14 @@ def err_immediate_dtor : Error<
 def err_cannot_evaluate_immedate : Error<
   "cannot evaluate call to immediate %select{function|member function}0">;
 
+// Reflection
+def err_reflect_undeclared_id : Error<
+  "reflection of undeclared identifier %0">;
+def err_reflect_ambiguous_id : Error<
+  "reflection of ambiguous identifier %0">;
+def err_reflect_overloaded_id : Error<
+  "reflection of overloaded identifier %0">;
+
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<
   "'%0' type specifier is incompatible with C++98">,

@@ -19,6 +19,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/LambdaCapture.h"
+#include "clang/AST/Reflection.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/UnresolvedSet.h"
 #include "clang/Basic/ExpressionTraits.h"
@@ -4298,7 +4299,10 @@ public:
 /// \brief Represents a compile-time value that was computed by a constant
 //// expression.
 class CXXConstantExpr : public Expr {
+  /// \brief The source expression.
   Stmt *Source;
+
+  /// \brief The computed value of the source expression.
   APValue Value;
 public:
   CXXConstantExpr(Expr *E, APValue&& V)
@@ -4322,12 +4326,75 @@ public:
     return Source->getLocEnd();
   }
 
-  child_range children() { return child_range(&Source, &Source + 1); }
+  child_range children() { 
+    return child_range(&Source, &Source + 1); 
+  }
 
+  const_child_range children() const { 
+    return const_child_range(&Source, &Source + 1); 
+  }
+  
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXConstantExprClass;
   }
 };
+
+/// \brief Represents the compile-time reflection of an entity.
+///
+/// If the operand is type dependent.
+class CXXReflectExpr : public Expr {
+  SourceLocation KWLoc;
+  SourceLocation LParenLoc;
+  SourceLocation RParenLoc;
+
+  /// The reflected entity.
+  Reflection Ref;
+
+public:
+  CXXReflectExpr(SourceLocation KWLoc, QualType T, Reflection R, 
+                 SourceLocation LPLoc, SourceLocation RPLoc, 
+                 ExprValueKind VK, bool TD, bool VD, bool ID, bool UPP)
+    : Expr(CXXReflectExprClass, T, VK, OK_Ordinary, TD, VD, ID, UPP),
+      KWLoc(KWLoc), LParenLoc(LPLoc), RParenLoc(RPLoc), Ref(R) {}
+
+  CXXReflectExpr(EmptyShell Empty)
+    : Expr(CXXReflectExprClass, Empty) {}
+
+  /// \brief The reflected entity.
+  Reflection getReflectedEntity() const { return Ref; }
+
+  /// \brief True if the expression reflects a declaration.
+  bool isReflectedDeclaration() { return Ref.isDeclaration(); }
+
+  /// \brief True if the expression reflects a type.
+  bool isReflectedType() { return Ref.isDeclaration(); }
+
+  /// \brief The reflected declaration.
+  NamedDecl *getReflectedDeclaration() { return Ref.getAsDeclaration(); }
+
+  /// \brief The reflected type.
+  Type *getReflectedType() { return Ref.getAsType(); }
+
+  SourceLocation getLocStart() const LLVM_READONLY { 
+    return KWLoc; 
+  }
+  SourceLocation getLocEnd() const LLVM_READONLY {
+    return RParenLoc;
+  }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXReflectExprClass;
+  }
+};
+
 
 }  // end namespace clang
 

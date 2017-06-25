@@ -2491,6 +2491,17 @@ void StmtPrinter::VisitCXXConstantExpr(CXXConstantExpr *S) {
   PrintExpr(S->getExpression());
 }
 
+void StmtPrinter::VisitCXXReflectExpr(CXXReflectExpr *S) {
+  OS << "reflexpr(";
+  if (NamedDecl *ND = S->getReflectedDeclaration())
+    OS << ND->getDeclName();
+  else if (Type *T = S->getReflectedType()) 
+    QualType(T, 0).print(OS, Policy);
+  else
+    llvm_unreachable("invalid reflection");
+  OS << ")";
+}
+
 // Obj-C
 
 void StmtPrinter::VisitObjCStringLiteral(ObjCStringLiteral *Node) {

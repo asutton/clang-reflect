@@ -1741,6 +1741,10 @@ void StmtProfiler::VisitCXXConstantExpr(const CXXConstantExpr *S) {
   VisitExpr(S);
 }
 
+void StmtProfiler::VisitCXXReflectExpr(const CXXReflectExpr *S) {
+  VisitExpr(S);
+}
+
 void StmtProfiler::VisitTypoExpr(const TypoExpr *E) {
   VisitExpr(E);
 }

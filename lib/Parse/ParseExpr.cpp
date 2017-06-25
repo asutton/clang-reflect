@@ -594,6 +594,7 @@ class CastExpressionIdValidator : public CorrectionCandidateCallback {
 /// [C++11] 'noexcept' '(' expression ')' [C++11 5.3.7]
 /// [C++]   new-expression
 /// [C++]   delete-expression
+/// [Meta]  reflect-expression
 ///
 ///       unary-operator: one of
 ///         '&'  '*'  '+'  '-'  '~'  '!'
@@ -1184,6 +1185,10 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     break;
   case tok::kw_this:
     Res = ParseCXXThis();
+    break;
+
+  case tok::kw_reflexpr:
+    Res = ParseCXXReflectExpression();
     break;
 
   case tok::annot_typename:

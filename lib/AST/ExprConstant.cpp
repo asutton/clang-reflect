@@ -4868,6 +4868,16 @@ public:
     return DerivedSuccess(E->getValue(), E);
   }
 
+  bool VisitCXXReflectExpr(const CXXReflectExpr *E) {
+    // TODO: Create a value corresponding to a reflection of a meta_info 
+    // object. It would be nice if we cached the constructor on the reflection
+    // expression so we could just evaluate that.
+    //
+    // FIXME: This is *way* wrong.
+    APSInt N = Info.Ctx.MakeIntValue(1, E->getType());
+    return DerivedSuccess(APValue(N), E);
+  }
+
   /// Visit a value which is evaluated, but whose value is ignored.
   void VisitIgnoredValue(const Expr *E) {
     EvaluateIgnoredValue(Info, E);
@@ -10312,6 +10322,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ArrayTypeTraitExprClass:
   case Expr::ExpressionTraitExprClass:
   case Expr::CXXNoexceptExprClass:
+  case Expr::CXXConstantExprClass:
+  case Expr::CXXReflectExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {
@@ -10567,9 +10579,6 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
     return CheckICE(cast<CXXDefaultInitExpr>(E)->getExpr(), Ctx);
   case Expr::ChooseExprClass: {
     return CheckICE(cast<ChooseExpr>(E)->getChosenSubExpr(), Ctx);
-  case Expr::CXXConstantExprClass:
-    // A constant expression with integral type is an ICE.
-    return NoDiag();
   }
   }
 

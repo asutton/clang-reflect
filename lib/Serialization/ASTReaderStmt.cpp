@@ -392,8 +392,11 @@ void ASTStmtReader::VisitCoyieldExpr(CoyieldExpr *S) {
 }
 
 void ASTStmtReader::VisitCXXConstantExpr(CXXConstantExpr *S) {
-  // FIXME: Implement serialization.
-  llvm_unreachable("unimplemented");
+  llvm_unreachable("constant expression reading not implemented");
+}
+
+void ASTStmtReader::VisitCXXReflectExpr(CXXReflectExpr *S) {
+  llvm_unreachable("reflection reading not implemented");
 }
 
 void ASTStmtReader::VisitCapturedStmt(CapturedStmt *S) {

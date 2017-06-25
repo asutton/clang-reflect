@@ -7027,6 +7027,12 @@ TreeTransform<Derived>::TransformCXXConstantExpr(CXXConstantExpr *E) {
   return getDerived().RebuildCXXConstantExpr(E);
 }
 
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
+  llvm_unreachable("transformation of reflexpr not implemented");
+}
+
 // Objective-C Statements.
 
 template<typename Derived>
