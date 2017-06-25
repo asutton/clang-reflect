@@ -1,0 +1,30 @@
+// -*- C++ -*-
+
+#ifndef CPPX_META
+#define CPPX_META
+
+namespace cppx
+{
+namespace meta
+{
+inline namespace v1
+{
+
+class meta_info 
+{
+  std::intptr_t node;
+
+  // This is used only by the compiler.
+  constexpr meta_info(std::intptr_t n) : node(n) { }
+
+public:
+  immediate bool test() const { return true; }
+};
+
+} // inline namespace v1
+} // namespace meta
+} // namespace cppx
+
+
+
+#endif // CPPX_META
