@@ -7606,3 +7606,48 @@ Sema::BuildConstantExpression(Expr *E)
     llvm_unreachable("invalid value category");
   return new (Context) CXXConstantExpr(E, std::move(Result.Val));
 }
+
+/// Try to evaluate an immediate function. 
+static ExprResult
+EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
+{
+  // FIXME: If we're in the context of an immediate function, don't bother
+  // checking; it's likely that some arguments to the call involve arguments
+  // to the function.
+
+  SmallVector<PartialDiagnosticAt, 4> Diags;
+  Expr::EvalResult Result;
+  Result.Diag = &Diags;
+  if (E->EvaluateAsAnyValue(Result, SemaRef.Context))
+    return new (SemaRef.Context) CXXConstantExpr(E, std::move(Result.Val));
+
+  for (PartialDiagnosticAt PD : Diags)
+    SemaRef.Diag(PD.first, PD.second);
+  
+  return ExprError();
+}
+
+ExprResult
+Sema::FinishCallExpr(Expr *E)
+{
+  if (CXXMemberCallExpr *MemCall = dyn_cast<CXXMemberCallExpr>(E)) {
+    CXXMethodDecl *Method = MemCall->getMethodDecl();
+    if (Method->isImmediate()) {
+      ExprResult Value = EvaluateImmediateFunction(*this, MemCall);
+      if (Value.isInvalid())
+        return ExprError();
+      E = Value.get();
+    }
+  } else if (CallExpr *Call = dyn_cast<CallExpr>(E)) {
+    if (FunctionDecl *Callee = Call->getDirectCallee()) {
+      if (Callee->isImmediate()) {
+        ExprResult Value = EvaluateImmediateFunction(*this, Call);
+        if (Value.isInvalid())
+          return ExprError();
+        E = Value.get();
+      }
+    }
+  }
+
+  return MaybeBindToTemporary(E);
+}

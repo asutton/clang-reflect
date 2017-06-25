@@ -5207,6 +5207,7 @@ static void checkDirectCallValidity(Sema &S, const Expr *Fn,
 ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
                                MultiExprArg ArgExprs, SourceLocation RParenLoc,
                                Expr *ExecConfig, bool IsExecConfig) {
+
   // Since this might be a postfix expression, get rid of ParenListExprs.
   ExprResult Result = MaybeConvertParenListExprToParenExpr(Scope, Fn);
   if (Result.isInvalid()) return ExprError();
@@ -5374,26 +5375,6 @@ ExprResult Sema::ActOnConvertVectorExpr(Expr *E, ParsedType ParsedDestTy,
   TypeSourceInfo *TInfo;
   GetTypeFromParser(ParsedDestTy, &TInfo);
   return SemaConvertVectorExpr(E, TInfo, BuiltinLoc, RParenLoc);
-}
-
-/// Try to evaluate an immediate function. 
-static ExprResult
-EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
-{
-  // FIXME: If we're in the context of an immediate function, don't bother
-  // checking; it's likely that some arguments to the call involve arguments
-  // to the function.
-
-  SmallVector<PartialDiagnosticAt, 4> Diags;
-  Expr::EvalResult Result;
-  Result.Diag = &Diags;
-  if (E->EvaluateAsAnyValue(Result, SemaRef.Context))
-    return new (SemaRef.Context) CXXConstantExpr(E, std::move(Result.Val));
-
-  for (PartialDiagnosticAt PD : Diags)
-    SemaRef.Diag(PD.first, PD.second);
-  
-  return ExprError();
 }
 
 /// BuildResolvedCallExpr - Build a call to a resolved expression,
@@ -5606,15 +5587,7 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
       return ExprError();
   }
 
-  // If the function is marked immediate, evaluate it now.
-  if (FDecl->isImmediate()) {
-    ExprResult Value = EvaluateImmediateFunction(*this, TheCall);
-    if (Value.isInvalid())
-      return ExprError();
-    return MaybeBindToTemporary(Value.get());
-  }
-
-  return MaybeBindToTemporary(TheCall);
+  return FinishCallExpr(TheCall);
 }
 
 ExprResult
