@@ -7634,9 +7634,13 @@ EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
 ExprResult
 Sema::FinishCallExpr(Expr *E)
 {
-  // FIXME: If we're in the context of an immediate function, don't bother
-  // checking; it's likely that some arguments to the call involve arguments
-  // to the function.
+  // Don't evaluate immediate functions within the body of another immediate
+  // function. The arguments aren't known to be (but may be assumed to be?)
+  // constant expressions.
+  if (FunctionDecl *Fn = getCurFunctionDecl()) {
+    if (Fn->isImmediate())
+      return E;
+  }
 
   if (CXXMemberCallExpr *MemCall = dyn_cast<CXXMemberCallExpr>(E)) {
     CXXMethodDecl *Method = MemCall->getMethodDecl();
