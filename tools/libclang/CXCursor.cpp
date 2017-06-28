@@ -243,6 +243,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::CXXStdInitializerListExprClass:
   case Stmt::CXXScalarValueInitExprClass:
   case Stmt::CXXUuidofExprClass:
+  case Stmt::ReflectionTraitExprClass:
   case Stmt::ChooseExprClass:
   case Stmt::DesignatedInitExprClass:
   case Stmt::DesignatedInitUpdateExprClass:

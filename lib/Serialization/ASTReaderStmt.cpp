@@ -392,11 +392,15 @@ void ASTStmtReader::VisitCoyieldExpr(CoyieldExpr *S) {
 }
 
 void ASTStmtReader::VisitCXXConstantExpr(CXXConstantExpr *S) {
-  llvm_unreachable("constant expression reading not implemented");
+  llvm_unreachable("unimplemented");
 }
 
 void ASTStmtReader::VisitCXXReflectExpr(CXXReflectExpr *S) {
-  llvm_unreachable("reflection reading not implemented");
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitReflectionTraitExpr(ReflectionTraitExpr *E) {
+  llvm_unreachable("unimplemented");
 }
 
 void ASTStmtReader::VisitCapturedStmt(CapturedStmt *S) {

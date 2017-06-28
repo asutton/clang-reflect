@@ -1273,6 +1273,7 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::StringLiteralClass:
   case Expr::CXXConstantExprClass:
   case Expr::CXXReflectExprClass:
+  case Expr::ReflectionTraitExprClass:
     // These expressions can never throw.
     return CT_Cannot;
 

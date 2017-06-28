@@ -67,6 +67,17 @@
 #define ANNOTATION(X) TOK(annot_ ## X)
 #endif
 
+// [Meta] Keyword macros for reflection queries.
+#ifndef REFLECTION_TRAIT
+#define REFLECTION_TRAIT(N,I,K) KEYWORD(I, KEYCXX11)
+#endif
+#ifndef REFLECTION_TRAIT_1
+#define REFLECTION_TRAIT_1(I,K) REFLECTION_TRAIT(1,I,K)
+#endif
+#ifndef REFLECTION_TRAIT_2
+#define REFLECTION_TRAIT_2(I,K) REFLECTION_TRAIT(2,I,K)
+#endif
+
 //===----------------------------------------------------------------------===//
 // Preprocessor keywords.
 //===----------------------------------------------------------------------===//
@@ -375,11 +386,14 @@ KEYWORD(co_yield                    , KEYCOROUTINES)
 MODULES_KEYWORD(module)
 MODULES_KEYWORD(import)
 
-// C++ reflection keywords
+// C++ metaprogramming keywords
 //
 // FIXME: These should have KEYREFLECT
 KEYWORD(immediate                   , KEYCXX11)
 KEYWORD(reflexpr                    , KEYCXX11)
+
+// Reflection/library interface
+REFLECTION_TRAIT_1(__reflect_index, ReflectIndex)
 
 // GNU Extensions (in impl-reserved namespace)
 KEYWORD(_Decimal32                  , KEYALL)
@@ -804,6 +818,9 @@ ANNOTATION(module_include)
 ANNOTATION(module_begin)
 ANNOTATION(module_end)
 
+#undef REFLECTION_TRAIT_2
+#undef REFLECTION_TRAIT_1
+#undef REFLECTION_TRAIT
 #undef ANNOTATION
 #undef TESTING_KEYWORD
 #undef OBJC2_AT_KEYWORD

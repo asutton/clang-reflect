@@ -2591,9 +2591,10 @@ private:
                                   UnqualifiedId &Result);
 
   //===--------------------------------------------------------------------===//
-  // Meta
+  // Metaprogramming
 
   ExprResult ParseCXXReflectExpression();
+  ExprResult ParseReflectionTrait();
 
   //===--------------------------------------------------------------------===//
   // OpenMP: Directives and clauses.

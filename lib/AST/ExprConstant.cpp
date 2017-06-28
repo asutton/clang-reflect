@@ -3,7 +3,7 @@
 //                     The LLVM Compiler Infrastructure
 //
 // This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// License. See LICENSE.TXT for details.f
 //
 //===----------------------------------------------------------------------===//
 //
@@ -4876,6 +4876,14 @@ public:
     // FIXME: This is *way* wrong.
     APSInt N = Info.Ctx.MakeIntValue(1, E->getType());
     return DerivedSuccess(APValue(N), E);
+  }
+
+  bool VisitReflectionTraitExpr(const ReflectionTraitExpr *E) {
+    APValue Node;
+    if (!Evaluate(Node, Info, E->getASTNode()))
+      return Error(E);
+    Node.dump();
+    return Error(E);
   }
 
   /// Visit a value which is evaluated, but whose value is ignored.
@@ -10580,6 +10588,10 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ChooseExprClass: {
     return CheckICE(cast<ChooseExpr>(E)->getChosenSubExpr(), Ctx);
   }
+
+  case Expr::ReflectionTraitExprClass:
+    // FIXME: This probably depends on the reflection trait. 
+    return NoDiag();
   }
 
   llvm_unreachable("Invalid StmtClass!");

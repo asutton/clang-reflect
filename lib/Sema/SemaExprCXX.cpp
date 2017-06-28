@@ -7588,7 +7588,7 @@ Sema::CheckMicrosoftIfExistsSymbol(Scope *S, SourceLocation KeywordLoc,
   return CheckMicrosoftIfExistsSymbol(S, SS, TargetNameInfo);
 }
 
-/// Evaluate's the expression E and returns a CXXConstantExpr that wraps
+/// Evaluates the expression E and returns a CXXConstantExpr that wraps
 /// the both E and the computed value.
 ExprResult
 Sema::BuildConstantExpression(Expr *E)
@@ -7617,14 +7617,9 @@ EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
   if (E->EvaluateAsAnyValue(Result, SemaRef.Context))
     return new (SemaRef.Context) CXXConstantExpr(E, std::move(Result.Val));
 
-  int Which;
-  if (isa<CXXMemberCallExpr>(E))
-    Which = 1;
-  else
-    Which = 0;
-
+  bool IsMember = isa<CXXMemberCallExpr>(E);
   SemaRef.Diag(E->getLocStart(), diag::err_cannot_evaluate_immedate)
-      << Which << E->getSourceRange();
+      << IsMember << E->getSourceRange();
   for (PartialDiagnosticAt PD : Diags)
     SemaRef.Diag(PD.first, PD.second);
   

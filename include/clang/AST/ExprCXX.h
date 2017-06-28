@@ -4350,12 +4350,15 @@ class CXXReflectExpr : public Expr {
   /// The reflected entity.
   Reflection Ref;
 
+  /// A cached construct expression that produces a meta_info object.
+  Expr *Construct;
+
 public:
   CXXReflectExpr(SourceLocation KWLoc, QualType T, Reflection R, 
                  SourceLocation LPLoc, SourceLocation RPLoc, 
                  ExprValueKind VK, bool TD, bool VD, bool ID, bool UPP)
     : Expr(CXXReflectExprClass, T, VK, OK_Ordinary, TD, VD, ID, UPP),
-      KWLoc(KWLoc), LParenLoc(LPLoc), RParenLoc(RPLoc), Ref(R) {}
+      KWLoc(KWLoc), LParenLoc(LPLoc), RParenLoc(RPLoc), Ref(R), Construct() {}
 
   CXXReflectExpr(EmptyShell Empty)
     : Expr(CXXReflectExprClass, Empty) {}
@@ -4374,6 +4377,13 @@ public:
 
   /// \brief The reflected type.
   Type *getReflectedType() { return Ref.getAsType(); }
+
+  /// \brief The cached construct expression.
+  Expr *getConstruction() const { return Construct; }
+  void setConstruction(Expr *E) {
+    assert(!Construct && "Construction already initialized");
+    Construct = E;
+  }
 
   SourceLocation getLocStart() const LLVM_READONLY { 
     return KWLoc; 
@@ -4395,6 +4405,62 @@ public:
   }
 };
 
+/// \brief A reflection trait intrinsic.
+/// 
+/// A reflection trait is a query of an AST node. All traits accept a sequence
+/// of arguments (expressions), the first of which is the encoded value of
+/// the AST node.
+class ReflectionTraitExpr : public Expr {
+protected:
+  ReflectionTrait Trait;
+  unsigned NumArgs;
+  Expr **Args;
+  SourceLocation TraitLoc;
+  SourceLocation RParenLoc;
+
+public:
+  ReflectionTraitExpr(ASTContext &C, QualType T, ReflectionTrait RT, 
+                      SourceLocation TraitLoc, ArrayRef<Expr *> Args, 
+                      SourceLocation RParenLoc);
+
+  ReflectionTraitExpr(StmtClass SC, EmptyShell Empty) : Expr(SC, Empty) {}
+
+  /// Returns the kind of reflection trait.
+  ReflectionTrait getTrait() const { return Trait; }
+
+  /// Returns the arity of the trait.
+  unsigned getNumArgs() const { return NumArgs; }
+
+  /// Returns the ith argument of the reflection trait.
+  Expr *getArg(unsigned I) const {
+    assert(I < NumArgs && "Argument out-of-range");
+    return cast<Expr>(Args[I]);
+  }
+
+  /// \brief Returns the array of arguments.
+  Expr **getArgs() const { return Args; }
+
+  /// Returns the operand representing the reflected entity.
+  Expr *getASTNode() const { return cast<Expr>(Args[0]); }
+
+  /// Returns the source code location of the trait keyword.
+  SourceLocation getTraitLoc() const { return TraitLoc; }
+
+  /// Returns the source code location of the closing parenthesis.
+  SourceLocation getRParenLoc() const { return RParenLoc; }
+
+  SourceLocation getLocStart() const { return TraitLoc; }
+  SourceLocation getLocEnd() const { return RParenLoc; }
+
+  child_range children() {
+    return child_range(reinterpret_cast<Stmt **>(&Args[0]),
+                       reinterpret_cast<Stmt **>(&Args[0] + NumArgs));
+  }
+  const_child_range children() const {
+    return const_child_range(reinterpret_cast<Stmt **>(&Args[0]),
+                             reinterpret_cast<Stmt **>(&Args[0] + NumArgs));
+  }
+};
 
 }  // end namespace clang
 

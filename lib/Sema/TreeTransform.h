@@ -1404,6 +1404,17 @@ public:
     return getSema().BuildConstantExpression(E);
   }
 
+  /// \brief Build a new reflection trait expression.
+  ///
+  /// By default, performs semantic analysis to build the new expression.
+  /// Subclasses may override this routine to provide different behavior.
+  ExprResult RebuildReflectionTraitExpr(SourceLocation TraitLoc,
+                                        ReflectionTrait Trait,
+                                        ArrayRef<Expr *> Args,
+                                        SourceLocation RParenLoc) {
+    return getSema().ActOnReflectionTrait(TraitLoc, Trait, Args, RParenLoc);
+  }
+
   /// \brief Build a new Objective-C \@try statement.
   ///
   /// By default, performs semantic analysis to build the new statement.
@@ -7031,6 +7042,21 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
   llvm_unreachable("transformation of reflexpr not implemented");
+}
+
+template <typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformReflectionTraitExpr(ReflectionTraitExpr *E) {
+  SmallVector<Expr *, 2> Args(E->getNumArgs());
+  for (unsigned i = 0; i < E->getNumArgs(); ++i) {
+    ExprResult Arg = getDerived().TransformExpr(E->getArg(i));
+    if (Arg.isInvalid())
+      return ExprError();
+    Args[i] = Arg.get();
+  }
+
+  return getDerived().RebuildReflectionTraitExpr(
+      E->getTraitLoc(), E->getTrait(), Args, E->getRParenLoc());
 }
 
 // Objective-C Statements.

@@ -3,6 +3,9 @@
 #ifndef CPPX_META
 #define CPPX_META
 
+#include <cstddef>
+#include <cstdint>
+
 namespace cppx
 {
 namespace meta
@@ -10,15 +13,32 @@ namespace meta
 inline namespace v1
 {
 
+enum entity_kind {
+  translation_unit,
+  namespace_decl,
+  variable_decl,
+  member_variable_decl,
+  function_decl,
+  member_function_decl,
+  constructor_decl,
+  destructor_decl,
+
+  fundamental_type,
+  class_type,
+  union_type,
+  enum_type,
+};
+
 class meta_info 
 {
   std::intptr_t node;
 
-  // This is used only by the compiler.
+public:
+  // FIXME: This should be private.
   constexpr meta_info(std::intptr_t n) : node(n) { }
 
 public:
-  immediate bool test() const { return true; }
+  immediate std::size_t index() const { return __reflect_index(node); }
 };
 
 } // inline namespace v1

@@ -326,11 +326,15 @@ void ASTStmtWriter::VisitCoyieldExpr(CoyieldExpr *S) {
 }
 
 void ASTStmtWriter::VisitCXXConstantExpr(CXXConstantExpr *S) {
-  llvm_unreachable("constant expression writing not implemented");
+  llvm_unreachable("unimplemented");
 }
 
 void ASTStmtWriter::VisitCXXReflectExpr(CXXReflectExpr *S) {
-  llvm_unreachable("reflection writing not implemented");
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtWriter::VisitReflectionTraitExpr(ReflectionTraitExpr *E) {
+  llvm_unreachable("unimplemented");
 }
 
 void ASTStmtWriter::VisitCapturedStmt(CapturedStmt *S) {

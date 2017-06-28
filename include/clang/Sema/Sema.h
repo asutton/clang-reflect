@@ -759,6 +759,15 @@ public:
   /// \brief The MSVC "_GUID" struct, which is defined in MSVC header files.
   RecordDecl *MSVCGuidDecl;
 
+  /// \brief The 'cppx' namespace.
+  NamespaceDecl *CppxNamespace = nullptr;
+
+  /// \brief The 'cppx::meta' namespace.
+  NamespaceDecl *CppxMetaNamespace = nullptr;
+
+  /// \brief The 'cppx::meta::meta_info' type.
+  CXXRecordDecl *MetaInfoDecl = nullptr;
+
   /// \brief Caches identifiers/selectors for NSFoundation APIs.
   std::unique_ptr<NSAPI> NSAPIObj;
 
@@ -8320,10 +8329,15 @@ public:
   void CheckCompletedCoroutineBody(FunctionDecl *FD, Stmt *&Body);
 
   //===--------------------------------------------------------------------===//
-  // [Meta]
+  // Metaprogramming
   //
 
   ExprResult BuildConstantExpression(Expr *E);
+  
+  // Namespace and types
+  NamespaceDecl *getCppxNamespace(SourceLocation Loc);
+  NamespaceDecl *getCppxMetaNamespace(SourceLocation Loc);
+  QualType getMetaInfoType(SourceLocation Loc);
 
   bool ActOnReflectedId(CXXScopeSpec &SS, SourceLocation IdLoc, 
                         IdentifierInfo *Id, unsigned &Kind, 
@@ -8333,6 +8347,11 @@ public:
   ExprResult ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind, 
                                        ParsedReflectionPtr Entity,
                                        SourceLocation LP, SourceLocation RP);
+
+  ExprResult ActOnReflectionTrait(SourceLocation TraitLoc, 
+                                  ReflectionTrait Trait,
+                                  ArrayRef<Expr *> Args,
+                                  SourceLocation RPLoc);
 
   //===--------------------------------------------------------------------===//
   // OpenCL extensions.
