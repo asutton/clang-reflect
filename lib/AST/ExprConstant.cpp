@@ -4879,10 +4879,21 @@ public:
   }
 
   bool VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *E) {
-    APValue Node;
-    if (!Evaluate(Node, Info, E->getASTNode()))
-      return Error(E);
-    Node.dump();
+    // Evaluate operands.
+    SmallVector<APValue, 2> Args(E->getNumArgs());
+    for (std::size_t I = 0; I < Args.size(); ++I) {
+      Expr *Arg = E->getArg(I);
+      if (!Evaluate(Args[I], Info, Arg))
+        return false;
+    }
+
+    switch (E->getTrait()) {
+    case URT_ReflectIndex: {
+      APValue Index(Info.Ctx.MakeIntValue(0, E->getType()));
+      return DerivedSuccess(Index, E);
+    }
+    }
+
     return Error(E);
   }
 

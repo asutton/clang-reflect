@@ -177,7 +177,7 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
                                            /*IsInstantiationDependent=*/false, 
                                            /*ContainsUnexpandedPacks=*/false);
 
-  // Build an expression that constructs a meta_info object.
+  // Build an expression that constructs a meta_info object. 
   QualType IntPtrTy = Context.getIntPtrType();
   llvm::APSInt Value = Context.MakeIntValue(Ref.ToOpaqueValue(), IntPtrTy);
   Expr *Lit = new (Context) IntegerLiteral(Context, Value, IntPtrTy, KWLoc);
