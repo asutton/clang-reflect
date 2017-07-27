@@ -2594,7 +2594,7 @@ private:
   // Metaprogramming
 
   ExprResult ParseCXXReflectExpression();
-  ExprResult ParseReflectionTrait();
+  ExprResult ParseCXXReflectionTrait();
 
   //===--------------------------------------------------------------------===//
   // OpenMP: Directives and clauses.

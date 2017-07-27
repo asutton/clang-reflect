@@ -4878,7 +4878,7 @@ public:
     return DerivedSuccess(APValue(N), E);
   }
 
-  bool VisitReflectionTraitExpr(const ReflectionTraitExpr *E) {
+  bool VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *E) {
     APValue Node;
     if (!Evaluate(Node, Info, E->getASTNode()))
       return Error(E);
@@ -10589,7 +10589,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
     return CheckICE(cast<ChooseExpr>(E)->getChosenSubExpr(), Ctx);
   }
 
-  case Expr::ReflectionTraitExprClass:
+  case Expr::CXXReflectionTraitExprClass:
     // FIXME: This probably depends on the reflection trait. 
     return NoDiag();
   }

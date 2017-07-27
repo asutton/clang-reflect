@@ -1745,7 +1745,8 @@ void StmtProfiler::VisitCXXReflectExpr(const CXXReflectExpr *S) {
   VisitExpr(S);
 }
 
-void StmtProfiler::VisitReflectionTraitExpr(const ReflectionTraitExpr *E) {
+void StmtProfiler::VisitCXXReflectionTraitExpr(
+                                              const CXXReflectionTraitExpr *E) {
   VisitExpr(E);
 }
 

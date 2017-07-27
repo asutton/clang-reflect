@@ -1415,12 +1415,12 @@ TypeTraitExpr *TypeTraitExpr::CreateDeserialized(const ASTContext &C,
 
 void ArrayTypeTraitExpr::anchor() { }
 
-ReflectionTraitExpr::ReflectionTraitExpr(ASTContext &C, QualType T, 
-                                         ReflectionTrait RT, 
-                                         SourceLocation TraitLoc, 
-                                         ArrayRef<Expr *> Args, 
-                                         SourceLocation RParenLoc)
-  : Expr(ReflectionTraitExprClass, T, VK_RValue, OK_Ordinary,
+CXXReflectionTraitExpr::CXXReflectionTraitExpr(ASTContext &C, QualType T, 
+                                               ReflectionTrait RT, 
+                                               SourceLocation TraitLoc, 
+                                               ArrayRef<Expr *> Args, 
+                                               SourceLocation RParenLoc) 
+  : Expr(CXXReflectionTraitExprClass, T, VK_RValue, OK_Ordinary,
          std::any_of(Args.begin(), Args.end(), [](Expr *E) { 
            return E->isTypeDependent(); 
          }),

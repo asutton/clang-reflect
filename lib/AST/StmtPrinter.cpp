@@ -2513,7 +2513,7 @@ static const char *getReflectionTraitName(ReflectionTrait RT) {
   llvm_unreachable("Invalid trait");
 }
 
-void StmtPrinter::VisitReflectionTraitExpr(ReflectionTraitExpr *E) {
+void StmtPrinter::VisitCXXReflectionTraitExpr(CXXReflectionTraitExpr *E) {
   OS << getReflectionTraitName(E->getTrait()) << '(';
   for (unsigned i = 0; i < E->getNumArgs(); ++i) {
     PrintExpr(E->getArg(i));

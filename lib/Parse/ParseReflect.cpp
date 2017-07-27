@@ -112,7 +112,7 @@ static unsigned ReflectionTraitArity(tok::TokenKind kind) {
 ///   unary-reflection-trait:
 ///     '__reflect_index'
 /// \endverbatim
-ExprResult Parser::ParseReflectionTrait() {
+ExprResult Parser::ParseCXXReflectionTrait() {
   tok::TokenKind Kind = Tok.getKind();
   SourceLocation Loc = ConsumeToken();
 
@@ -142,6 +142,6 @@ ExprResult Parser::ParseReflectionTrait() {
   }
 
   ReflectionTrait Trait = ReflectionTraitKind(Kind);
-  return Actions.ActOnReflectionTrait(Loc, Trait, Args, RPLoc);
+  return Actions.ActOnCXXReflectionTrait(Loc, Trait, Args, RPLoc);
 }
 

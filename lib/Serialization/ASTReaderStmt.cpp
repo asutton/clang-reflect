@@ -399,7 +399,7 @@ void ASTStmtReader::VisitCXXReflectExpr(CXXReflectExpr *S) {
   llvm_unreachable("unimplemented");
 }
 
-void ASTStmtReader::VisitReflectionTraitExpr(ReflectionTraitExpr *E) {
+void ASTStmtReader::VisitCXXReflectionTraitExpr(CXXReflectionTraitExpr *E) {
   llvm_unreachable("unimplemented");
 }
 

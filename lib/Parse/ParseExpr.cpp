@@ -1390,7 +1390,7 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
 #define REFLECTION_TRAIT(N,Spelling,K) \
   case tok::kw_##Spelling:
 #include "clang/Basic/TokenKinds.def"
-    return ParseReflectionTrait();
+    return ParseCXXReflectionTrait();
 
   case tok::at: {
     SourceLocation AtLoc = ConsumeToken();

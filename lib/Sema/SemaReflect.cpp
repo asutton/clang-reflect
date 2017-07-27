@@ -189,10 +189,10 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
   return Reflect;
 }
 
-ExprResult Sema::ActOnReflectionTrait(SourceLocation TraitLoc,
-                                      ReflectionTrait Kind,
-                                      ArrayRef<Expr *> Args,
-                                      SourceLocation RParenLoc) {
+ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
+                                         ReflectionTrait Kind,
+                                         ArrayRef<Expr *> Args,
+                                         SourceLocation RParenLoc) {
 
   // FIXME: Actually check the types of operands.
 
@@ -203,6 +203,6 @@ ExprResult Sema::ActOnReflectionTrait(SourceLocation TraitLoc,
       break;
   }
 
-  return new (Context) ReflectionTraitExpr(Context, ResultTy, Kind, TraitLoc,
-                                           Args, RParenLoc);
+  return new (Context) CXXReflectionTraitExpr(Context, ResultTy, Kind, TraitLoc,
+                                              Args, RParenLoc);
 }

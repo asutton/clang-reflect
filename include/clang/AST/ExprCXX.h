@@ -4410,7 +4410,7 @@ public:
 /// A reflection trait is a query of an AST node. All traits accept a sequence
 /// of arguments (expressions), the first of which is the encoded value of
 /// the AST node.
-class ReflectionTraitExpr : public Expr {
+class CXXReflectionTraitExpr : public Expr {
 protected:
   ReflectionTrait Trait;
   unsigned NumArgs;
@@ -4419,11 +4419,11 @@ protected:
   SourceLocation RParenLoc;
 
 public:
-  ReflectionTraitExpr(ASTContext &C, QualType T, ReflectionTrait RT, 
-                      SourceLocation TraitLoc, ArrayRef<Expr *> Args, 
-                      SourceLocation RParenLoc);
+  CXXReflectionTraitExpr(ASTContext &C, QualType T, ReflectionTrait RT, 
+                         SourceLocation TraitLoc, ArrayRef<Expr *> Args, 
+                         SourceLocation RParenLoc);
 
-  ReflectionTraitExpr(StmtClass SC, EmptyShell Empty) : Expr(SC, Empty) {}
+  CXXReflectionTraitExpr(StmtClass SC, EmptyShell Empty) : Expr(SC, Empty) {}
 
   /// Returns the kind of reflection trait.
   ReflectionTrait getTrait() const { return Trait; }

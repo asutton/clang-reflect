@@ -1408,11 +1408,11 @@ public:
   ///
   /// By default, performs semantic analysis to build the new expression.
   /// Subclasses may override this routine to provide different behavior.
-  ExprResult RebuildReflectionTraitExpr(SourceLocation TraitLoc,
+  ExprResult RebuildCXXReflectionTraitExpr(SourceLocation TraitLoc,
                                         ReflectionTrait Trait,
                                         ArrayRef<Expr *> Args,
                                         SourceLocation RParenLoc) {
-    return getSema().ActOnReflectionTrait(TraitLoc, Trait, Args, RParenLoc);
+    return getSema().ActOnCXXReflectionTrait(TraitLoc, Trait, Args, RParenLoc);
   }
 
   /// \brief Build a new Objective-C \@try statement.
@@ -7046,7 +7046,8 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
 
 template <typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformReflectionTraitExpr(ReflectionTraitExpr *E) {
+TreeTransform<Derived>::TransformCXXReflectionTraitExpr(
+                                                    CXXReflectionTraitExpr *E) {
   SmallVector<Expr *, 2> Args(E->getNumArgs());
   for (unsigned i = 0; i < E->getNumArgs(); ++i) {
     ExprResult Arg = getDerived().TransformExpr(E->getArg(i));
@@ -7055,7 +7056,7 @@ TreeTransform<Derived>::TransformReflectionTraitExpr(ReflectionTraitExpr *E) {
     Args[i] = Arg.get();
   }
 
-  return getDerived().RebuildReflectionTraitExpr(
+  return getDerived().RebuildCXXReflectionTraitExpr(
       E->getTraitLoc(), E->getTrait(), Args, E->getRParenLoc());
 }
 

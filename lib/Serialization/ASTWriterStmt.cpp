@@ -333,7 +333,7 @@ void ASTStmtWriter::VisitCXXReflectExpr(CXXReflectExpr *S) {
   llvm_unreachable("unimplemented");
 }
 
-void ASTStmtWriter::VisitReflectionTraitExpr(ReflectionTraitExpr *E) {
+void ASTStmtWriter::VisitCXXReflectionTraitExpr(CXXReflectionTraitExpr *E) {
   llvm_unreachable("unimplemented");
 }
 

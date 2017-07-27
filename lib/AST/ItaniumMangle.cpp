@@ -3365,7 +3365,7 @@ recurse:
   case Expr::AtomicExprClass:
   case Expr::CXXConstantExprClass:
   case Expr::CXXReflectExprClass:
-  case Expr::ReflectionTraitExprClass:
+  case Expr::CXXReflectionTraitExprClass:
   {
     if (!NullOut) {
       // As bad as this diagnostic is, it's better than crashing.
