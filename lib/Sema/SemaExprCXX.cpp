@@ -7597,13 +7597,25 @@ Sema::BuildConstantExpression(Expr *E)
   // probably want more context when we do this so that we can generate 
   // appropriate diagnostics. Right now, we only build these when folding
   // calls to immediate functions.
+  bool OK;
+  SmallVector<PartialDiagnosticAt, 4> Diags;
   Expr::EvalResult Result;
-  if (E->isRValue() && !E->EvaluateAsRValue(Result, Context))
-    return ExprError();
-  else if (E->isLValue() && !E->EvaluateAsLValue(Result, Context))
-    return ExprError();
+  Result.Diag = &Diags;
+  if (E->isRValue())
+    OK = E->EvaluateAsRValue(Result, Context);
+  else if (E->isLValue())
+    OK = E->EvaluateAsLValue(Result, Context);
   else
     llvm_unreachable("invalid value category");
+
+  if (!OK) {
+    // FIXME: Wrong error message.
+    Diag(E->getLocStart(), diag::err_expr_not_ice) << 0;
+    for (auto PD : Diags)
+      Diag(PD.first, PD.second);
+    return ExprError();
+  }
+
   return new (Context) CXXConstantExpr(E, std::move(Result.Val));
 }
 

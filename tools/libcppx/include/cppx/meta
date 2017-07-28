@@ -6,6 +6,14 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace std
+{
+
+template<std::size_t I, typename T>
+struct variant_alternative_t;  
+
+};
+
 namespace cppx
 {
 namespace meta
@@ -20,13 +28,16 @@ enum construct_kind {
   translation_unit,
   namespace_decl,
   variable_decl,
-  member_variable_decl,
   function_decl,
   parameter_decl,
+  class_decl,
+  union_decl,
+  member_variable_decl,
   member_function_decl,
   constructor_decl,
   destructor_decl,
   conversion_decl,
+  enum_decl,
   enumerator_decl,
   access_spec,
 
@@ -38,9 +49,6 @@ enum construct_kind {
   function_type,
   pointer_type,
   array_type,
-  class_type,
-  union_type,
-  enum_type,
 };
 
 namespace __detail {
@@ -59,6 +67,199 @@ struct meta_data
 
 } // namespace __detail
 
+// -------------------------------------------------------------------------- //
+// Declarations
+
+/// Compile-time information about a translation unit.
+class translation_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  constexpr translation_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a namespace.
+class namespace_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  namespace_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a variable.
+class variable_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  variable_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a function.
+class function_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  function_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a class.
+class class_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  class_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a union.
+class union_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  union_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a member variable.
+class member_variable_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  member_variable_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a member function.
+class member_function_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  member_function_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a constructor.
+class constructor_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  constructor_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a destructor.
+class destructor_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  destructor_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a conversion function.
+class conversion_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  conversion_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about a class.
+class enum_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  enum_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about an enumerator.
+class enumerator_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  enumerator_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+/// Compile-time information about an access specifier.
+class access_info {
+  __detail::meta_data m;
+
+  friend class meta_info;
+
+  access_info(__detail::meta_data m) : m(m) { }
+public:
+};
+
+
+// -------------------------------------------------------------------------- //
+// Types
+
+/// Compile-time information about the void type...
+///
+/// FIXME: this does not seem particularly useful.
+class void_type_info {
+  __detail::meta_data m;
+public:
+};
+
+/// Compile-time information about an integral type.
+class integral_type_info {
+  __detail::meta_data m;
+public:
+};
+
+/// Compile-time information about a floating point type.
+class floating_point_type_info {
+  __detail::meta_data m;
+public:
+};
+
+/// Compile-time information about a reference type.
+class reference_type_info {
+  __detail::meta_data m;
+public:
+};
+
+/// Compile-time information about a function type.
+class function_type_info {
+  __detail::meta_data m;
+public:
+};
+
+/// Compile-time information about a pointer type.
+class pointer_type_info {
+  __detail::meta_data m;
+public:
+};
+
+/// Compile-time information about a array type.
+class array_type_info {
+  __detail::meta_data m;
+public:
+};
+
+// -------------------------------------------------------------------------- //
+// Variant
 /// The primary interface to reflection. This models the read-only version of
 /// the concept inherent in std::variant.
 class meta_info 
@@ -77,6 +278,10 @@ public:
   constexpr bool valueless_by_exception() const noexcept { 
     return false; 
   }
+
+  // constexpr translation_info get_translation_unit() {
+  //   return translation_info{m};
+  // }
 };
 
 } // inline namespace v1

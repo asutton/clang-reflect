@@ -4350,15 +4350,12 @@ class CXXReflectExpr : public Expr {
   /// The reflected entity.
   Reflection Ref;
 
-  /// A cached construct expression that produces a meta_info object.
-  Expr *Construct;
-
 public:
   CXXReflectExpr(SourceLocation KWLoc, QualType T, Reflection R, 
                  SourceLocation LPLoc, SourceLocation RPLoc, 
                  ExprValueKind VK, bool TD, bool VD, bool ID, bool UPP)
     : Expr(CXXReflectExprClass, T, VK, OK_Ordinary, TD, VD, ID, UPP),
-      KWLoc(KWLoc), LParenLoc(LPLoc), RParenLoc(RPLoc), Ref(R), Construct() {}
+      KWLoc(KWLoc), LParenLoc(LPLoc), RParenLoc(RPLoc), Ref(R) { }
 
   CXXReflectExpr(EmptyShell Empty)
     : Expr(CXXReflectExprClass, Empty) {}
@@ -4377,13 +4374,6 @@ public:
 
   /// \brief The reflected type.
   Type *getReflectedType() { return Ref.getAsType(); }
-
-  /// \brief The cached expression used to construct the reflected object.
-  Expr *getConstruction() const { return Construct; }
-  void setConstruction(Expr *E) {
-    assert(!Construct && "Construction already initialized");
-    Construct = E;
-  }
 
   SourceLocation getLocStart() const LLVM_READONLY { 
     return KWLoc; 

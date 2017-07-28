@@ -1404,6 +1404,13 @@ public:
     return getSema().BuildConstantExpression(E);
   }
 
+  /// \brief Rebuild a reflection expression from a source expression.
+  ExprResult RebuildCXXReflectExpr(SourceLocation KWLoc, unsigned Kind, 
+                                   void* Entity, SourceLocation RPLoc) {
+    return getSema().ActOnCXXReflectExpression(KWLoc, Kind, Entity, 
+                                               SourceLocation(), RPLoc);
+  }
+
   /// \brief Build a new reflection trait expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -1412,6 +1419,7 @@ public:
                                         ReflectionTrait Trait,
                                         ArrayRef<Expr *> Args,
                                         SourceLocation RParenLoc) {
+    // TODO: Make a separate Build function.
     return getSema().ActOnCXXReflectionTrait(TraitLoc, Trait, Args, RParenLoc);
   }
 
@@ -7041,7 +7049,18 @@ TreeTransform<Derived>::TransformCXXConstantExpr(CXXConstantExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
-  llvm_unreachable("transformation of reflexpr not implemented");
+  Reflection R;
+  if (Decl *D = E->getReflectedDeclaration()) {
+    Decl *NewDecl = TransformDecl(D->getLocation(), D);
+    R = Reflection::ReflectDeclaration(NewDecl);
+  } else if (Type *T = E->getReflectedType()) {
+    QualType NewType = TransformType(QualType(T, 0));
+    R = Reflection::ReflectType(const_cast<Type*>(NewType.getTypePtr()));
+  }
+  return RebuildCXXReflectExpr(E->getLocStart(), 
+                               R.getKind(), 
+                               const_cast<void*>(R.getOpaquePointer()),
+                               E->getLocEnd());
 }
 
 template <typename Derived>

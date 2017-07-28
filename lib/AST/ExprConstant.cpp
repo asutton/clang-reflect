@@ -4906,13 +4906,16 @@ enum ConstructKind {
   CK_TranslationUnit, 
   CK_NamespaceDecl,
   CK_VariableDecl,
-  CK_MemberVariableDecl,
   CK_FunctionDecl,
   CK_ParameterDecl,
+  CK_ClassDecl,
+  CK_UnionDecl,
+  CK_MemberVariableDecl,
   CK_MemberFunctionDecl,
   CK_ConstructorDecl,
   CK_DestructorDecl,
   CK_ConversionDecl,
+  CK_EnumDecl,
   CK_EnumeratorDecl,
   CK_AccessSpec,
 
@@ -4924,9 +4927,6 @@ enum ConstructKind {
   CK_FunctionType,
   CK_PointerType,
   CK_ArrayType,
-  CK_ClassType,
-  CK_UnionType,
-  CK_EnumType,
 };
 
 std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
@@ -4957,12 +4957,12 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
     case Decl::CXXRecord: {
       TagDecl *TD = cast<TagDecl>(D);
       if (TD->isStruct() || TD->isClass())
-        return CK_ClassType;
+        return CK_ClassDecl;
       else
-        return CK_UnionType;
+        return CK_UnionDecl;
     }
     case Decl::Enum:
-      return CK_EnumType;
+      return CK_EnumDecl;
     case Decl::EnumConstant:
       return CK_EnumeratorDecl;
     default:
@@ -4992,16 +4992,6 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
     case Type::ConstantArray:
     case Type::IncompleteArray:
       return CK_ArrayType;
-    case Type::Record:
-      // FIXME: I don't think we ever actually get here. We tend to interpret
-      // class types as declarations earlier in the analysis.
-      // TODO: __interface?
-      if (T->isUnionType())
-        return CK_UnionType;
-      else
-        return CK_ClassType;
-    case Type::Enum:
-      return CK_EnumType;
     default:
       T->dump();
       llvm_unreachable("reflection of unhandled type kind");
