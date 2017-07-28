@@ -13,7 +13,9 @@ namespace meta
 inline namespace v1
 {
 
-enum entity_kind {
+enum construct_kind {
+  null_construct,
+
   translation_unit,
   namespace_decl,
   variable_decl,
@@ -29,16 +31,40 @@ enum entity_kind {
   enum_type,
 };
 
+namespace __detail {
+
+// WARNING: Do not modify the layout of this class or its private constructors
+// unless you also plan to modify the compiler. In other words, do not touch.
+struct meta_data
+{
+  constexpr meta_data() 
+    : category(null_construct), handle() 
+  { }
+  
+  unsigned category;
+  std::uintptr_t handle;
+};
+
+} // namespace __detail
+
+/// The primary interface to reflection. This models the read-only version of
+/// the concept inherent in std::variant.
 class meta_info 
 {
-  std::intptr_t node;
-
+  __detail::meta_data m;
 public:
-  // FIXME: This should be private.
-  constexpr meta_info(std::intptr_t n) : node(n) { }
+  /// Default construct a null reflection.
+  constexpr meta_info() = default;
 
-public:
-  immediate std::size_t index() const { return __reflect_index(node); }
+  /// Returns the construct discriminator.
+  immediate std::size_t index() const noexcept { 
+    return __reflect_index(m); 
+  }
+
+  // This is never valueless.
+  constexpr bool valueless_by_exception() const noexcept { 
+    return false; 
+  }
 };
 
 } // inline namespace v1

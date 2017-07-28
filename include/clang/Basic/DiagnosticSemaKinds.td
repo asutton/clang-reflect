@@ -2358,12 +2358,10 @@ def err_cannot_evaluate_immedate : Error<
 // Reflection
 def err_need_header_before_reflexpr : Error<
   "you need to include <cppx/meta> before using the 'reflexpr' operator">;
-def err_reflect_undeclared_id : Error<
-  "reflection of undeclared identifier %0">;
-def err_reflect_ambiguous_id : Error<
-  "reflection of ambiguous identifier %0">;
-def err_reflect_overloaded_id : Error<
-  "reflection of overloaded identifier %0">;
+def err_reflect_undeclared_id : Error<"reflection of undeclared identifier %0">;
+def err_reflect_ambiguous_id : Error<"reflection of ambiguous identifier %0">;
+def err_reflect_overloaded_id : Error<"reflection of overloaded identifier %0">;
+def err_reflection_failed : Error<"reflection failed">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<

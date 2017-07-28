@@ -137,7 +137,7 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
   if (Meta.isNull())
     return ExprError();
 
-  ReflectedEntityKind REK = (ReflectedEntityKind)Kind;
+  ReflectionKind REK = (ReflectionKind)Kind;
   Reflection Ref = Reflection::FromKindAndPtr(REK, Entity);
 
   // Get a type for the reflection.
@@ -159,34 +159,34 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
   // FIXME: There is also the potential for "unresolved" reflections like
   // overload sets. Those are not type dependent, but would have overload type.
 
-  CXXReflectExpr *Reflect;
   if (IsTypeDependent)
     // If the operand is type dependent, the result is value dependent.
-    Reflect = new (Context) CXXReflectExpr(KWLoc, Meta, Ref, LPLoc, RPLoc,
+    return new (Context) CXXReflectExpr(KWLoc, Meta, Ref, LPLoc, RPLoc,
                                            VK_RValue, 
                                            /*IsTypeDependent=*/false, 
                                            /*IsValueDependent=*/IsTypeDependent, 
                                       OperandTy->isInstantiationDependentType(), 
                                   OperandTy->containsUnexpandedParameterPack());
-  else
-    // The declaration is a non-dependent value decl.
-    Reflect = new (Context) CXXReflectExpr(KWLoc, Meta, Ref, LPLoc, RPLoc,
-                                           VK_RValue, 
-                                           /*IsTypeDependent=*/false, 
-                                           /*IsValueDependent=*/false, 
-                                           /*IsInstantiationDependent=*/false, 
-                                           /*ContainsUnexpandedPacks=*/false);
 
-  // Build an expression that constructs a meta_info object. 
-  QualType IntPtrTy = Context.getIntPtrType();
-  llvm::APSInt Value = Context.MakeIntValue(Ref.ToOpaqueValue(), IntPtrTy);
-  Expr *Lit = new (Context) IntegerLiteral(Context, Value, IntPtrTy, KWLoc);
-  MultiExprArg Args(Lit);
-  TypeSourceInfo *TSI = Context.getTrivialTypeSourceInfo(Meta);
-  ExprResult Construct = BuildCXXTypeConstructExpr(TSI, KWLoc, Args, KWLoc);
-  Reflect->setConstruction(Construct.get());
+  // The declaration is a non-dependent value decl.
+  CXXReflectExpr *Reflect
+      = new (Context) CXXReflectExpr(KWLoc, Meta, Ref, LPLoc, RPLoc, VK_RValue,
+                                     /*IsTypeDependent=*/false, 
+                                     /*IsValueDependent=*/false, 
+                                     /*IsInstantiationDependent=*/false, 
+                                     /*ContainsUnexpandedPacks=*/false);
 
-  return Reflect;
+  // Never defer evaluation.
+  SmallVector<PartialDiagnosticAt, 4> Diags;
+  Expr::EvalResult Result;
+  if (!Reflect->EvaluateAsRValue(Result, Context)) {
+    Diag(KWLoc, diag::err_reflection_failed);
+    for (PartialDiagnosticAt PD : Diags)
+      Diag(PD.first, PD.second);
+    return ExprError();
+  }
+
+  return new (Context) CXXConstantExpr(Reflect, std::move(Result.Val));
 }
 
 ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
@@ -194,13 +194,34 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                          ArrayRef<Expr *> Args,
                                          SourceLocation RParenLoc) {
 
-  // FIXME: Actually check the types of operands.
+  // FIXME: We actually need to compute the reflected entity in order to
+  // determine certain result types
 
+  // FIXME: Actually check the types of operands.
   QualType ResultTy;
   switch (Kind) {
     case URT_ReflectIndex:
+      ResultTy = Context.getSizeType();
+      break;
+    case URT_ReflectName:
+      // FIXME: Type is 'const char*'.
       ResultTy = Context.IntTy;
       break;
+    case URT_ReflectType:
+      ResultTy = getMetaInfoType(TraitLoc);
+      break;
+    case URT_ReflectValue:
+      // FIXME: This depends on the reflected construct. Could be a reference,
+      // function pointer, or member pointer.
+      ResultTy = Context.IntTy;
+      break;
+    case URT_ReflectTraits:
+      // FIXME: This depends on the reflected construct. Could be any one of
+      // a number of bit fields.
+      ResultTy = Context.UnsignedIntTy;
+      break;
+    case URT_ReflectPrint:
+      ResultTy = Context.VoidTy;
   }
 
   return new (Context) CXXReflectionTraitExpr(Context, ResultTy, Kind, TraitLoc,

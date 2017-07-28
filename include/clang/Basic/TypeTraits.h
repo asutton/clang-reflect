@@ -106,6 +106,11 @@ namespace clang {
   /// second is usually an integer value that indexes into an array.
   enum ReflectionTrait {
     URT_ReflectIndex,
+    URT_ReflectName,
+    URT_ReflectType,
+    URT_ReflectValue,
+    URT_ReflectTraits,
+    URT_ReflectPrint,
   };
 }
 

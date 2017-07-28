@@ -25,6 +25,7 @@
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/RawCommentList.h"
+#include "clang/AST/Reflection.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
@@ -2549,6 +2550,39 @@ public:
   /// of static storage duration.
   APValue *getMaterializedTemporaryValue(const MaterializeTemporaryExpr *E,
                                          bool MayCreate);
+
+  //===--------------------------------------------------------------------===//
+  //                    Metaprogramming
+  //===--------------------------------------------------------------------===//
+
+  /// Maintains the set active of reflections.
+  ///
+  /// TODO: Cached reflections (roughly) follow scoping rules so that this
+  /// cached does not grow without bound. Returning a reflection from a
+  /// function is a bit interesting.
+  ///
+  /// FIXME: Is this really part of the AST context, or should it be part
+  /// of the evaluation context?
+  llvm::DenseSet<Reflection> Reflections;
+
+  /// Add a new handle for the reflection R. Overwriting existing reflections
+  /// is an identity operation.
+  std::uintptr_t AddReflection(Reflection R) {
+    assert(!R.isNull() && "Inserting null reflection");
+    Reflections.insert(R);
+    return reinterpret_cast<std::uintptr_t>(R.getOpaquePointer());
+  }
+
+  /// Get the reflection corresponding to H. If it is not reflected, R is
+  /// unmodified and this returns false.
+  bool GetReflection(std::uintptr_t H, Reflection& R) {
+    void *Ptr = reinterpret_cast<void *>(H);
+    auto Iter = Reflections.find(Reflection::FromKindAndPtr(REK_null, Ptr));
+    if (Iter == Reflections.end())
+      return false;
+    R = *Iter;
+    return true;
+  }
 
   //===--------------------------------------------------------------------===//
   //                    Statistics

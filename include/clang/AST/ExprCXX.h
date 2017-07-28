@@ -4373,12 +4373,12 @@ public:
   bool isReflectedType() { return Ref.isDeclaration(); }
 
   /// \brief The reflected declaration.
-  NamedDecl *getReflectedDeclaration() { return Ref.getAsDeclaration(); }
+  Decl *getReflectedDeclaration() { return Ref.getAsDeclaration(); }
 
   /// \brief The reflected type.
   Type *getReflectedType() { return Ref.getAsType(); }
 
-  /// \brief The cached construct expression.
+  /// \brief The cached expression used to construct the reflected object.
   Expr *getConstruction() const { return Construct; }
   void setConstruction(Expr *E) {
     assert(!Construct && "Construction already initialized");
@@ -4424,6 +4424,14 @@ public:
                          SourceLocation RParenLoc);
 
   CXXReflectionTraitExpr(StmtClass SC, EmptyShell Empty) : Expr(SC, Empty) {}
+
+  /// \brief Compute the reflected trait for Args.
+  ///
+  /// This is the main entry point for reflection-related operations. It is
+  /// called from during constexpr evaluation to compute the reflected value.
+  ///
+  /// The implementation of this function is in Reflect.cpp.
+  bool Reflect(EvalResult &Result, ASTContext &Ctx) const;
 
   /// Returns the kind of reflection trait.
   ReflectionTrait getTrait() const { return Trait; }

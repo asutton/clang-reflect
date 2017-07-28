@@ -1,4 +1,4 @@
-//===--- ReFlection.cpp - Classes for representing reflection ---*- C++ -*-===//
+//===--- Reflection.cpp - Classes for representing reflection ---*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -12,28 +12,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/Reflection.h"
+#include "clang/AST/ASTContext.h"
 using namespace clang;
 
+// FIXME: The resulting structure must match *exactly* the `meta_data`
+// class in cppx::meta. If not, bad things will happen.
+APValue Reflection::getMetaData(ASTContext& Ctx) const {
+  llvm::APSInt Category = Ctx.MakeIntValue(getKind(), Ctx.UnsignedIntTy);
+  llvm::APSInt Handle = Ctx.MakeIntValue(reinterpret_cast<std::uintptr_t>(Ptr), 
+                                         Ctx.getUIntPtrType());
 
-Reflection
-Reflection::FromOpaqueValue(std::intptr_t N) {
-  using Helper = llvm::detail::PointerSumTypeHelper<
-      ReflectedEntityKind, 
-      llvm::PointerSumTypeMember<REK_null, void *>,
-      llvm::PointerSumTypeMember<REK_decl, NamedDecl *>,
-      llvm::PointerSumTypeMember<REK_type, Type *>>;
-
-  ReflectedEntityKind K = (ReflectedEntityKind)(N & Helper::TagMask);
-  void *P = (void *)(N & Helper::PointerMask);
-  return FromKindAndPtr(K, P);
+  APValue Result(APValue::UninitStruct(), 0, 2);
+  Result.getStructField(0) = APValue(Category);
+  Result.getStructField(1) = APValue(Handle);
+  return Result;
 }
 
-Reflection
-Reflection::FromKindAndPtr(ReflectedEntityKind K, void* P) {
-  switch (K) {
-    case REK_null: return Reflection();
-    case REK_decl: return Reflection::ReflectDeclaration((NamedDecl*)P);
-    case REK_type: return Reflection::ReflectType((Type*)P);
-  }
-  llvm_unreachable("Invalid reflection kind");
-}

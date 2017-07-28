@@ -4870,28 +4870,66 @@ public:
 
   bool VisitCXXReflectExpr(const CXXReflectExpr *E) {
     // TODO: Create a value corresponding to a reflection of a meta_info 
-    // object. It would be nice if we cached the constructor on the reflection
-    // expression so we could just evaluate that.
-    //
-    // FIXME: This is *way* wrong.
-    APSInt N = Info.Ctx.MakeIntValue(1, E->getType());
-    return DerivedSuccess(APValue(N), E);
+    Reflection Ref = E->getReflectedEntity();
+
+    // Active the reflection for subsequent lookup.
+    Info.Ctx.AddReflection(Ref);
+
+    // Create the meta_info wrapper object and populate the nested
+    // meta_data structure.
+    APValue Result(APValue::UninitStruct(), 0, 1);
+    Result.getStructField(0) = Ref.getMetaData(Info.Ctx);
+    return DerivedSuccess(Result, E);
   }
 
   bool VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *E) {
-    // Evaluate operands.
+    // Evaluate operands here; all are expected to be rvalues of some type.
+    // The first is required to be a meta_info object.
     SmallVector<APValue, 2> Args(E->getNumArgs());
     for (std::size_t I = 0; I < Args.size(); ++I) {
-      Expr *Arg = E->getArg(I);
+      const Expr *Arg = E->getArg(I);
       if (!Evaluate(Args[I], Info, Arg))
         return false;
     }
 
-    switch (E->getTrait()) {
-    case URT_ReflectIndex: {
-      APValue Index(Info.Ctx.MakeIntValue(0, E->getType()));
-      return DerivedSuccess(Index, E);
+    // Get the meta_info object for unpacking.
+    const Expr* E0 = E->getArg(0);
+    APValue *MetaInfo = &Args[0];
+    if (MetaInfo->isLValue()) {
+      QualType T = E0->getType();
+      LValue LV;
+      LV.setFrom(Info.Ctx, *MetaInfo);
+      CompleteObject CO = findCompleteObject(Info, E0, AK_Read, LV, T);
+      if (!CO)
+        return false;
+      MetaInfo = CO.Value;
+    } 
+    assert(MetaInfo && "No meta_info object");
+    APValue &MetaData = MetaInfo->getStructField(0);
+
+    // Decode the reflection.
+    std::uintptr_t Handle = MetaData.getStructField(1).getInt().getExtValue();
+    Reflection Ref;
+    if (!Info.Ctx.GetReflection(Handle, Ref)) {
+      CCEDiag(E->getArg(0), diag::note_reflection_not_known);
+      return false;
     }
+
+    switch (E->getTrait()) {
+      case URT_ReflectIndex: {
+        llvm::APSInt Index = Info.Ctx.MakeIntValue(42, E->getType());
+        return DerivedSuccess(APValue(Index), E);
+      }
+      case URT_ReflectName:
+        llvm_unreachable("not implemented");
+      case URT_ReflectType:
+        llvm_unreachable("not implemented");
+      case URT_ReflectValue:
+        llvm_unreachable("not implemented");
+      case URT_ReflectTraits:
+        llvm_unreachable("not implemented");
+      case URT_ReflectPrint:
+        llvm_unreachable("not implemented");
     }
 
     return Error(E);
@@ -10306,6 +10344,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CoawaitExprClass:
   case Expr::DependentCoawaitExprClass:
   case Expr::CoyieldExprClass:
+  case Expr::CXXReflectExprClass:
     return ICEDiag(IK_NotICE, E->getLocStart());
 
   case Expr::InitListExprClass: {
@@ -10342,7 +10381,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ExpressionTraitExprClass:
   case Expr::CXXNoexceptExprClass:
   case Expr::CXXConstantExprClass:
-  case Expr::CXXReflectExprClass:
+  case Expr::CXXReflectionTraitExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {
@@ -10599,10 +10638,6 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ChooseExprClass: {
     return CheckICE(cast<ChooseExpr>(E)->getChosenSubExpr(), Ctx);
   }
-
-  case Expr::CXXReflectionTraitExprClass:
-    // FIXME: This probably depends on the reflection trait. 
-    return NoDiag();
   }
 
   llvm_unreachable("Invalid StmtClass!");

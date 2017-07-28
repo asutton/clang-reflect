@@ -393,7 +393,12 @@ KEYWORD(immediate                   , KEYCXX11)
 KEYWORD(reflexpr                    , KEYCXX11)
 
 // Reflection/library interface
-REFLECTION_TRAIT_1(__reflect_index, ReflectIndex)
+REFLECTION_TRAIT_1(__reflect_index,  ReflectIndex)
+REFLECTION_TRAIT_1(__reflect_name,   ReflectName)
+REFLECTION_TRAIT_1(__reflect_type,   ReflectType)
+REFLECTION_TRAIT_1(__reflect_value,  ReflectValue)
+REFLECTION_TRAIT_1(__reflect_traits, ReflectTraits)
+REFLECTION_TRAIT_1(__reflect_print,  ReflectPrint)
 
 // GNU Extensions (in impl-reserved namespace)
 KEYWORD(_Decimal32                  , KEYALL)

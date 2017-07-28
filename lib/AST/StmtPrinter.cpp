@@ -2493,8 +2493,12 @@ void StmtPrinter::VisitCXXConstantExpr(CXXConstantExpr *S) {
 
 void StmtPrinter::VisitCXXReflectExpr(CXXReflectExpr *S) {
   OS << "reflexpr(";
-  if (NamedDecl *ND = S->getReflectedDeclaration())
-    OS << ND->getDeclName();
+  if (Decl *D = S->getReflectedDeclaration()) {
+    if (NamedDecl *ND = dyn_cast<NamedDecl>(D))
+      OS << ND->getDeclName();
+    else
+      OS << "<non-printable>"; // FIXME: ???
+  }
   else if (Type *T = S->getReflectedType()) 
     QualType(T, 0).print(OS, Policy);
   else
