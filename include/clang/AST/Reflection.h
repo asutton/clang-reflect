@@ -87,7 +87,7 @@ public:
 
   /// \brief The reflected declaration or null if not a declaration.
   Decl* getAsDeclaration() {
-    return isDeclaration() ? getAsDeclaration() : nullptr;
+    return isDeclaration() ? getDeclaration() : nullptr;
   }
 
   /// \brief The reflected type.

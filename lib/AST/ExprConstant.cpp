@@ -4882,58 +4882,7 @@ public:
     return DerivedSuccess(Result, E);
   }
 
-  bool VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *E) {
-    // Evaluate operands here; all are expected to be rvalues of some type.
-    // The first is required to be a meta_info object.
-    SmallVector<APValue, 2> Args(E->getNumArgs());
-    for (std::size_t I = 0; I < Args.size(); ++I) {
-      const Expr *Arg = E->getArg(I);
-      if (!Evaluate(Args[I], Info, Arg))
-        return false;
-    }
-
-    // Get the meta_info object for unpacking.
-    const Expr* E0 = E->getArg(0);
-    APValue *MetaInfo = &Args[0];
-    if (MetaInfo->isLValue()) {
-      QualType T = E0->getType();
-      LValue LV;
-      LV.setFrom(Info.Ctx, *MetaInfo);
-      CompleteObject CO = findCompleteObject(Info, E0, AK_Read, LV, T);
-      if (!CO)
-        return false;
-      MetaInfo = CO.Value;
-    } 
-    assert(MetaInfo && "No meta_info object");
-    APValue &MetaData = MetaInfo->getStructField(0);
-
-    // Decode the reflection.
-    std::uintptr_t Handle = MetaData.getStructField(1).getInt().getExtValue();
-    Reflection Ref;
-    if (!Info.Ctx.GetReflection(Handle, Ref)) {
-      CCEDiag(E->getArg(0), diag::note_reflection_not_known);
-      return false;
-    }
-
-    switch (E->getTrait()) {
-      case URT_ReflectIndex: {
-        llvm::APSInt Index = Info.Ctx.MakeIntValue(42, E->getType());
-        return DerivedSuccess(APValue(Index), E);
-      }
-      case URT_ReflectName:
-        llvm_unreachable("not implemented");
-      case URT_ReflectType:
-        llvm_unreachable("not implemented");
-      case URT_ReflectValue:
-        llvm_unreachable("not implemented");
-      case URT_ReflectTraits:
-        llvm_unreachable("not implemented");
-      case URT_ReflectPrint:
-        llvm_unreachable("not implemented");
-    }
-
-    return Error(E);
-  }
+  bool VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *E);
 
   /// Visit a value which is evaluated, but whose value is ignored.
   void VisitIgnoredValue(const Expr *E) {
@@ -4949,6 +4898,174 @@ public:
     VisitIgnoredValue(E);
   }
 };
+
+// TODO: Keep this in sync with cppx::meta::construct_kind
+enum ConstructKind {
+  CK_Null,
+
+  CK_TranslationUnit, 
+  CK_NamespaceDecl,
+  CK_VariableDecl,
+  CK_MemberVariableDecl,
+  CK_FunctionDecl,
+  CK_ParameterDecl,
+  CK_MemberFunctionDecl,
+  CK_ConstructorDecl,
+  CK_DestructorDecl,
+  CK_ConversionDecl,
+  CK_EnumeratorDecl,
+  CK_AccessSpec,
+
+  CK_VoidType,
+  CK_CharacterType,
+  CK_IntegralType,
+  CK_FloatingPointType,
+  CK_ReferenceType,
+  CK_FunctionType,
+  CK_PointerType,
+  CK_ArrayType,
+  CK_ClassType,
+  CK_UnionType,
+  CK_EnumType,
+};
+
+std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
+  if (Decl *D = R.getAsDeclaration()) {
+    switch (D->getKind()) {
+    case Decl::TranslationUnit:
+      return CK_TranslationUnit;
+    case Decl::Namespace:
+      return CK_NamespaceDecl;
+    case Decl::Var:
+      return CK_VariableDecl;
+    case Decl::Field:
+      return CK_MemberVariableDecl;
+    case Decl::Function:
+      return CK_FunctionDecl;
+    case Decl::ParmVar:
+      return CK_ParameterDecl;
+    case Decl::CXXMethod:
+      return CK_MemberFunctionDecl;
+    case Decl::CXXConstructor:
+      return CK_ConstructorDecl;
+    case Decl::CXXDestructor:
+      return CK_DestructorDecl;
+    case Decl::CXXConversion:
+      return CK_ConversionDecl;
+    case Decl::AccessSpec:
+      return CK_AccessSpec;
+    case Decl::CXXRecord: {
+      TagDecl *TD = cast<TagDecl>(D);
+      if (TD->isStruct() || TD->isClass())
+        return CK_ClassType;
+      else
+        return CK_UnionType;
+    }
+    case Decl::Enum:
+      return CK_EnumType;
+    case Decl::EnumConstant:
+      return CK_EnumeratorDecl;
+    default:
+      llvm_unreachable("reflection of unhandled declaration kind");
+    }
+  } else if (Type *T = R.getAsType()) {
+    switch (T->getTypeClass()) {
+    case Type::Builtin:
+      if (T->isVoidType())
+        return CK_VoidType;
+      if (T->isAnyCharacterType())
+        return CK_CharacterType;
+      if (T->isIntegralType(Ctx))
+        return CK_IntegralType;
+      if (T->isRealFloatingType())
+        return CK_FloatingPointType;
+      else
+        llvm_unreachable("unclassified builtin type");
+    case Type::LValueReference:
+    case Type::RValueReference:
+      return CK_ReferenceType;
+    case Type::FunctionProto:
+    case Type::FunctionNoProto:
+      return CK_FunctionType;
+    case Type::Pointer:
+      return CK_PointerType;
+    case Type::ConstantArray:
+    case Type::IncompleteArray:
+      return CK_ArrayType;
+    case Type::Record:
+      // FIXME: I don't think we ever actually get here. We tend to interpret
+      // class types as declarations earlier in the analysis.
+      // TODO: __interface?
+      if (T->isUnionType())
+        return CK_UnionType;
+      else
+        return CK_ClassType;
+    case Type::Enum:
+      return CK_EnumType;
+    default:
+      T->dump();
+      llvm_unreachable("reflection of unhandled type kind");
+    }
+  } else {
+    llvm_unreachable("unhandled reflected construct");
+  }
+}
+
+template<typename Derived>
+bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
+                                              const CXXReflectionTraitExpr *E) {
+  // Evaluate the operands.
+  SmallVector<APValue, 2> Args(E->getNumArgs());
+  for (std::size_t I = 0; I < Args.size(); ++I) {
+    const Expr *Arg = E->getArg(I);
+    if (!Evaluate(Args[I], Info, Arg))
+      return false;
+  }
+
+  // Get the meta_info object for unpacking.
+  const Expr* E0 = E->getArg(0);
+  APValue *MetaInfo = &Args[0];
+  if (MetaInfo->isLValue()) {
+    QualType T = E0->getType();
+    LValue LV;
+    LV.setFrom(Info.Ctx, *MetaInfo);
+    CompleteObject CO = findCompleteObject(Info, E0, AK_Read, LV, T);
+    if (!CO)
+      return false;
+    MetaInfo = CO.Value;
+  } 
+  assert(MetaInfo && "No meta_info object");
+  APValue &MetaData = MetaInfo->getStructField(0);
+
+  // Decode the reflection.
+  std::uintptr_t Handle = MetaData.getStructField(1).getInt().getExtValue();
+  Reflection R;
+  if (!Info.Ctx.GetReflection(Handle, R)) {
+    CCEDiag(E->getArg(0), diag::note_reflection_not_known);
+    return false;
+  }
+
+  switch (E->getTrait()) {
+    case URT_ReflectIndex: {
+      unsigned CK = ReflectIndex(Info.Ctx, R);
+      llvm::APSInt Index = Info.Ctx.MakeIntValue(CK, E->getType());
+      return DerivedSuccess(APValue(Index), E);
+    }
+    case URT_ReflectName:
+      llvm_unreachable("not implemented");
+    case URT_ReflectType:
+      llvm_unreachable("not implemented");
+    case URT_ReflectValue:
+      llvm_unreachable("not implemented");
+    case URT_ReflectTraits:
+      llvm_unreachable("not implemented");
+    case URT_ReflectPrint:
+      llvm_unreachable("not implemented");
+  }
+
+  return Error(E);
+}
+
 
 }
 

@@ -13,6 +13,7 @@ namespace meta
 inline namespace v1
 {
 
+// TODO: Keep this in sync with the compiler.
 enum construct_kind {
   null_construct,
 
@@ -21,11 +22,22 @@ enum construct_kind {
   variable_decl,
   member_variable_decl,
   function_decl,
+  parameter_decl,
   member_function_decl,
   constructor_decl,
   destructor_decl,
+  conversion_decl,
+  enumerator_decl,
+  access_spec,
 
-  fundamental_type,
+  void_type,
+  character_type,
+  integral_type,
+  floating_point_type,
+  reference_type,
+  function_type,
+  pointer_type,
+  array_type,
   class_type,
   union_type,
   enum_type,
