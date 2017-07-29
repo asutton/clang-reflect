@@ -67,6 +67,18 @@ struct meta_data
 
 } // namespace __detail
 
+
+// -------------------------------------------------------------------------- //
+// Facets
+
+template<typename Derived>
+struct nullable {
+  constexpr explicit operator bool() const noexcept {
+    const Derived& self = static_cast<const Derived&>(*this);
+    return self.m.category != null_construct; 
+  }
+};
+
 // -------------------------------------------------------------------------- //
 // Declarations
 
@@ -111,22 +123,26 @@ public:
 };
 
 /// Compile-time information about a class.
-class class_info {
+class class_info : public nullable<class_info> {
   __detail::meta_data m;
 
   friend class meta_info;
+  friend class nullable<class_info>;
 
-  class_info(__detail::meta_data m) : m(m) { }
+  constexpr class_info() : m() { }
+  constexpr class_info(__detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a union.
-class union_info {
+class union_info : public nullable<union_info> {
   __detail::meta_data m;
 
   friend class meta_info;
+  friend class nullable<union_info>;
 
-  union_info(__detail::meta_data m) : m(m) { }
+  constexpr union_info() : m() { }
+  constexpr union_info(__detail::meta_data m) : m(m) { }
 public:
 };
 
@@ -180,14 +196,19 @@ class conversion_info {
 public:
 };
 
-/// Compile-time information about a class.
-class enum_info {
+/// Compile-time information about an enumeration.
+class enum_info : public nullable<enum_info> {
   __detail::meta_data m;
 
   friend class meta_info;
+  friend class nullable<enum_info>;
 
-  enum_info(__detail::meta_data m) : m(m) { }
+  constexpr enum_info() : m() { }
+  constexpr enum_info(__detail::meta_data m) : m(m) { }
 public:
+  constexpr explicit operator bool() const noexcept { 
+    return m.category != null_construct; 
+  }
 };
 
 /// Compile-time information about an enumerator.
@@ -282,6 +303,26 @@ public:
   // constexpr translation_info get_translation_unit() {
   //   return translation_info{m};
   // }
+
+  immediate bool is_class() const noexcept {
+    return index() == class_decl;
+  }
+  immediate bool is_union() const noexcept {
+    return index() == union_decl;
+  }
+  immediate bool is_enum() const noexcept {
+    return index() == enum_decl;
+  }
+
+  immediate class_info get_class() const noexcept {
+    return is_class() ? class_info{m} : class_info{};
+  }
+  immediate union_info get_union() const noexcept {
+    return is_union() ? union_info{m} : union_info{};
+  }
+  immediate enum_info get_enum() const noexcept {
+    return is_enum() ? enum_info{m} : enum_info{};
+  }
 };
 
 } // inline namespace v1

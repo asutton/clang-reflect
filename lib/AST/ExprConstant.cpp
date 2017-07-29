@@ -6652,6 +6652,10 @@ public:
   bool VisitLambdaExpr(const LambdaExpr *E) {
     return VisitConstructExpr(E);
   }
+  bool VisitCXXConstantExpr(const CXXConstantExpr *E) {
+    // FIXME: This seems like it might not be right.
+    return VisitConstructExpr(E);
+  }
 };
 } // end anonymous namespace
 
