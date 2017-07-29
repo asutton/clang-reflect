@@ -1590,6 +1590,7 @@ static QualType adjustFunctionTypeForInstantiation(ASTContext &Context,
 ///   2) substituting friend declarations
 Decl *TemplateDeclInstantiator::VisitFunctionDecl(FunctionDecl *D,
                                        TemplateParameterList *TemplateParams) {
+  
   // Check whether there is already a function template specialization for
   // this declaration.
   FunctionTemplateDecl *FunctionTemplate = D->getDescribedFunctionTemplate();
@@ -1660,6 +1661,9 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(FunctionDecl *D,
         D->hasWrittenPrototype(), D->isConstexpr());
     Function->setRangeEnd(D->getSourceRange().getEnd());
   }
+
+  if (D->isImmediate())
+    Function->setImmediate(true);
 
   if (D->isInlined())
     Function->setImplicitlyInline();
@@ -1984,6 +1988,9 @@ TemplateDeclInstantiator::VisitCXXMethodDecl(CXXMethodDecl *D,
                                    SC, D->isInlineSpecified(),
                                    D->isConstexpr(), D->getLocEnd());
   }
+
+  if (D->isImmediate())
+    Method->setImmediate(true);
 
   if (D->isInlined())
     Method->setImplicitlyInline();

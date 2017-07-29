@@ -64,7 +64,22 @@ namespace Bad {
     }
   };
 
-  void test() {
+  template<typename T>
+  immediate T f2(T n) { return n + 1; }
+
+  template<typename T>
+  struct S2 {
+    immediate T f(T n) { 
+      return n + k; // expected-note {{read of non-constexpr variable 's3'}}
+    }
+
+    immediate static T g(T n) { return n + 1; }
+
+    int k;
+  };
+
+
+  void test(int n) { // expected-note {{declared here}}
     int x = 0; // expected-note {{declared here}} 
     f(x); // expected-error {{cannot evaluate call to immediate function}} \
           // expected-note {{read of non-const variable 'x' is not allowed in a constant expression}}
@@ -77,7 +92,17 @@ namespace Bad {
     S s2 {3}; // expected-note {{declared here}}
     s2.f(0); // expected-error {{cannot evaluate call to immediate member function}} \
              // expected-note {{in call to '&s2->f(0)'}}
+
+    f2(n + 1); // expected-error {{cannot evaluate call to immediate function}} \
+               // expected-note {{read of non-const variable 'n' is not allowed in a constant expression}}
+
+    S2<int> s3{n}; // expected-note {{declared here}}
+    s3.f(0); // expected-error {{cannot evaluate call to immediate member function}} \
+             // expected-note {{in call to '&s3->f(0)'}}
   }
 }
 
+
+void test(int n) {
+}
 
