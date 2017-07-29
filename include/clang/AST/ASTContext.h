@@ -90,6 +90,7 @@ class DiagnosticsEngine;
 class Expr;
 class MangleNumberingContext;
 class MaterializeTemporaryExpr;
+class StringLiteral;
 class TargetInfo;
 // Decls
 class MangleContext;
@@ -2583,6 +2584,12 @@ public:
     R = *Iter;
     return true;
   }
+
+  /// \brief The set of string literals generated during reflection.
+  llvm::StringMap<StringLiteral *> ReflectedStrings;
+
+  /// \brief Adds a new reflected string.
+  StringLiteral *MakeReflectedString(StringRef Str, SourceLocation Loc);
 
   //===--------------------------------------------------------------------===//
   //                    Statistics

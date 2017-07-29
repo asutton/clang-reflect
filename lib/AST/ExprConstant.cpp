@@ -5041,8 +5041,20 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       llvm::APSInt Index = Info.Ctx.MakeIntValue(CK, E->getType());
       return DerivedSuccess(APValue(Index), E);
     }
-    case URT_ReflectName:
-      llvm_unreachable("not implemented");
+    case URT_ReflectName: {
+      if (NamedDecl *ND = dyn_cast_or_null<NamedDecl>(R.getAsDeclaration())) {
+        if (IdentifierInfo *II = ND->getIdentifier()) {
+          StringLiteral *Str = Info.Ctx.MakeReflectedString(II->getName(),
+                                                            E->getLocStart());
+          APValue Val;
+          if (!Evaluate(Val, Info, Str))
+            return false;
+          return DerivedSuccess(Val, E);
+        }
+      }
+      CCEDiag(E0, diag::note_reflection_not_named) << 0;
+      return Error(E);
+    }
     case URT_ReflectType:
       llvm_unreachable("not implemented");
     case URT_ReflectValue:

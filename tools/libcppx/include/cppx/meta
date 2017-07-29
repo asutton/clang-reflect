@@ -51,7 +51,7 @@ enum construct_kind {
   array_type,
 };
 
-namespace __detail {
+namespace detail {
 
 // WARNING: Do not modify the layout of this class or its private constructors
 // unless you also plan to modify the compiler. In other words, do not touch.
@@ -61,150 +61,175 @@ struct meta_data
     : category(null_construct), handle() 
   { }
   
+  /// FIXME: We can actually drop this member; the kind can be recovered from
+  /// the reflection cache.
   unsigned category;
+
+  /// The handle to the reflected construct.
   std::uintptr_t handle;
 };
-
-} // namespace __detail
 
 
 // -------------------------------------------------------------------------- //
 // Facets
 
+/// Supports conversion to bool.
 template<typename Derived>
 struct nullable {
-  constexpr explicit operator bool() const noexcept {
+  /// Converts to true if the object has been default constructed.
+  immediate explicit operator bool() const noexcept {
     const Derived& self = static_cast<const Derived&>(*this);
-    return self.m.category != null_construct; 
+    return self.m.handle != 0;
   }
 };
+
+/// Provides information about the name of an entity.
+template<typename Derived>
+struct named {
+  immediate const char* name() const noexcept {
+    const Derived& self = static_cast<const Derived&>(*this);
+    return __reflect_name(self.m);
+  }
+};
+
+
+} // namespace detail
 
 // -------------------------------------------------------------------------- //
 // Declarations
 
 /// Compile-time information about a translation unit.
 class translation_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  constexpr translation_info(__detail::meta_data m) : m(m) { }
+  constexpr translation_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a namespace.
 class namespace_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  namespace_info(__detail::meta_data m) : m(m) { }
+  namespace_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a variable.
-class variable_info {
-  __detail::meta_data m;
+class variable_info : public detail::nullable<variable_info>,
+                      public detail::named<variable_info> {
+  detail::meta_data m;
 
   friend class meta_info;
+  friend class nullable<variable_info>;
+  friend class named<variable_info>;
 
-  variable_info(__detail::meta_data m) : m(m) { }
+  constexpr variable_info() : m() { }
+  constexpr variable_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a function.
 class function_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  function_info(__detail::meta_data m) : m(m) { }
+  function_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a class.
-class class_info : public nullable<class_info> {
-  __detail::meta_data m;
+class class_info : public detail::nullable<class_info>, 
+                   public detail::named<class_info> {
+  detail::meta_data m;
 
   friend class meta_info;
   friend class nullable<class_info>;
+  friend class named<class_info>;
 
   constexpr class_info() : m() { }
-  constexpr class_info(__detail::meta_data m) : m(m) { }
+  constexpr class_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a union.
-class union_info : public nullable<union_info> {
-  __detail::meta_data m;
+class union_info : public detail::nullable<union_info>, 
+                   public detail::named<union_info> {
+  detail::meta_data m;
 
   friend class meta_info;
   friend class nullable<union_info>;
+  friend class named<union_info>;
 
   constexpr union_info() : m() { }
-  constexpr union_info(__detail::meta_data m) : m(m) { }
+  constexpr union_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a member variable.
 class member_variable_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  member_variable_info(__detail::meta_data m) : m(m) { }
+  member_variable_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a member function.
 class member_function_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  member_function_info(__detail::meta_data m) : m(m) { }
+  member_function_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a constructor.
 class constructor_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  constructor_info(__detail::meta_data m) : m(m) { }
+  constructor_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a destructor.
 class destructor_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  destructor_info(__detail::meta_data m) : m(m) { }
+  destructor_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about a conversion function.
 class conversion_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  conversion_info(__detail::meta_data m) : m(m) { }
+  conversion_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about an enumeration.
-class enum_info : public nullable<enum_info> {
-  __detail::meta_data m;
+class enum_info : public detail::nullable<enum_info>,
+                  public detail::named<enum_info> {
+  detail::meta_data m;
 
   friend class meta_info;
   friend class nullable<enum_info>;
 
   constexpr enum_info() : m() { }
-  constexpr enum_info(__detail::meta_data m) : m(m) { }
+  constexpr enum_info(detail::meta_data m) : m(m) { }
 public:
   constexpr explicit operator bool() const noexcept { 
     return m.category != null_construct; 
@@ -213,21 +238,21 @@ public:
 
 /// Compile-time information about an enumerator.
 class enumerator_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  enumerator_info(__detail::meta_data m) : m(m) { }
+  enumerator_info(detail::meta_data m) : m(m) { }
 public:
 };
 
 /// Compile-time information about an access specifier.
 class access_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 
   friend class meta_info;
 
-  access_info(__detail::meta_data m) : m(m) { }
+  access_info(detail::meta_data m) : m(m) { }
 public:
 };
 
@@ -239,43 +264,43 @@ public:
 ///
 /// FIXME: this does not seem particularly useful.
 class void_type_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 public:
 };
 
 /// Compile-time information about an integral type.
 class integral_type_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 public:
 };
 
 /// Compile-time information about a floating point type.
 class floating_point_type_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 public:
 };
 
 /// Compile-time information about a reference type.
 class reference_type_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 public:
 };
 
 /// Compile-time information about a function type.
 class function_type_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 public:
 };
 
 /// Compile-time information about a pointer type.
 class pointer_type_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 public:
 };
 
 /// Compile-time information about a array type.
 class array_type_info {
-  __detail::meta_data m;
+  detail::meta_data m;
 public:
 };
 
@@ -285,7 +310,7 @@ public:
 /// the concept inherent in std::variant.
 class meta_info 
 {
-  __detail::meta_data m;
+  detail::meta_data m;
 public:
   /// Default construct a null reflection.
   constexpr meta_info() = default;
@@ -300,9 +325,9 @@ public:
     return false; 
   }
 
-  // constexpr translation_info get_translation_unit() {
-  //   return translation_info{m};
-  // }
+  immediate bool is_variable() const noexcept {
+    return index() == variable_decl;
+  }
 
   immediate bool is_class() const noexcept {
     return index() == class_decl;
@@ -312,6 +337,11 @@ public:
   }
   immediate bool is_enum() const noexcept {
     return index() == enum_decl;
+  }
+
+
+  immediate variable_info get_variable() const noexcept {
+    return is_variable() ? variable_info{m} : variable_info{};
   }
 
   immediate class_info get_class() const noexcept {

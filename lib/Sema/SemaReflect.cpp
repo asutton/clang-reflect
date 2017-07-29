@@ -204,8 +204,7 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
       ResultTy = Context.getSizeType();
       break;
     case URT_ReflectName:
-      // FIXME: Type is 'const char*'.
-      ResultTy = Context.IntTy;
+      ResultTy = Context.getPointerType(Context.CharTy.withConst());
       break;
     case URT_ReflectType:
       ResultTy = getMetaInfoType(TraitLoc);
