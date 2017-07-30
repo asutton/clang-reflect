@@ -51,6 +51,8 @@ enum construct_kind {
   array_type,
 };
 
+class meta_info;
+
 namespace detail {
 
 // WARNING: Do not modify the layout of this class or its private constructors
@@ -92,6 +94,12 @@ struct named {
   }
 };
 
+/// Provides information about the type of an entity.
+template<typename Derived>
+struct typed : named<Derived> {
+  immediate meta_info type() const noexcept;
+};
+
 
 } // namespace detail
 
@@ -120,12 +128,12 @@ public:
 
 /// Compile-time information about a variable.
 class variable_info : public detail::nullable<variable_info>,
-                      public detail::named<variable_info> {
+                      public detail::typed<variable_info> {
   detail::meta_data m;
 
   friend class meta_info;
   friend class nullable<variable_info>;
-  friend class named<variable_info>;
+  friend class typed<variable_info>;
 
   constexpr variable_info() : m() { }
   constexpr variable_info(detail::meta_data m) : m(m) { }
@@ -353,7 +361,25 @@ public:
   immediate enum_info get_enum() const noexcept {
     return is_enum() ? enum_info{m} : enum_info{};
   }
+
+  immediate const char* name() const noexcept {
+    return __reflect_name(m);
+  }
 };
+
+// -------------------------------------------------------------------------- //
+// Implementations
+
+
+namespace detail {
+template<typename Derived>
+immediate meta_info
+typed<Derived>::type() const noexcept {
+  const Derived& self = static_cast<const Derived&>(*this);
+  return __reflect_type(self.m);
+}
+
+} // namespace detail
 
 } // inline namespace v1
 } // namespace meta

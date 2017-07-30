@@ -5051,12 +5051,36 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
             return false;
           return DerivedSuccess(Val, E);
         }
+      } else if (Type *T = R.getAsType()) {
+        QualType CanTy = Info.Ctx.getCanonicalType(QualType(T, 0));
+        StringLiteral *Str = Info.Ctx.MakeReflectedString(CanTy.getAsString(),
+                                                          E->getLocStart());
+          APValue Val;
+          if (!Evaluate(Val, Info, Str))
+            return false;
+          return DerivedSuccess(Val, E);
       }
       CCEDiag(E0, diag::note_reflection_not_named) << 0;
-      return Error(E);
+      return false;
     }
-    case URT_ReflectType:
-      llvm_unreachable("not implemented");
+    case URT_ReflectType: {
+      if (ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration())) {
+        QualType CanTy = Info.Ctx.getCanonicalType(VD->getType());
+        Type *T = const_cast<Type*>(CanTy.getTypePtr());
+        Reflection Ref = Reflection::ReflectType(T);
+
+        // Active the reflection for subsequent lookup.
+        Info.Ctx.AddReflection(Ref);
+
+        // Create the meta_info wrapper object and populate the nested
+        // meta_data structure.
+        APValue Result(APValue::UninitStruct(), 0, 1);
+        Result.getStructField(0) = Ref.getMetaData(Info.Ctx);
+        return DerivedSuccess(Result, E);
+      }
+      CCEDiag(E0, diag::note_reflection_not_typed) << 0;
+      return false;
+    }
     case URT_ReflectValue:
       llvm_unreachable("not implemented");
     case URT_ReflectTraits:

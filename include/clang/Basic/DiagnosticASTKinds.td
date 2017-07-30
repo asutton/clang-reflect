@@ -282,5 +282,7 @@ def note_reflection_not_known : Note<
   "value does not refer to a reflected construct">;
 def note_reflection_not_named : Note<
   "reflected %select{entity|construct}0 does not have a name">;
+def note_reflection_not_typed : Note<
+  "reflected %select{entity|construct}0 does not have a type">;
 }
 }
