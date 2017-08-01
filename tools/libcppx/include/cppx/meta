@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 
 namespace std
 {
@@ -51,17 +52,16 @@ enum construct_kind {
   array_type,
 };
 
-class meta_info;
-
-namespace detail {
-
 // WARNING: Do not modify the layout of this class or its private constructors
 // unless you also plan to modify the compiler. In other words, do not touch.
 struct meta_data
 {
-  constexpr meta_data() 
+  immediate meta_data() 
     : category(null_construct), handle() 
   { }
+
+  /// Returns true when this is a null reference.
+  immediate bool null() const { return handle == 0; }
   
   /// FIXME: We can actually drop this member; the kind can be recovered from
   /// the reflection cache.
@@ -71,305 +71,847 @@ struct meta_data
   std::uintptr_t handle;
 };
 
+immediate bool operator==(meta_data a, meta_data b) noexcept {
+  return a.handle == b.handle;
+}
 
-// -------------------------------------------------------------------------- //
-// Facets
-
-/// Supports conversion to bool.
-template<typename Derived>
-struct nullable {
-  /// Converts to true if the object has been default constructed.
-  immediate explicit operator bool() const noexcept {
-    const Derived& self = static_cast<const Derived&>(*this);
-    return self.m.handle != 0;
-  }
-};
-
-/// Provides information about the name of an entity.
-template<typename Derived>
-struct named {
-  immediate const char* name() const noexcept {
-    const Derived& self = static_cast<const Derived&>(*this);
-    return __reflect_name(self.m);
-  }
-};
-
-/// Provides information about the type of an entity.
-template<typename Derived>
-struct typed : named<Derived> {
-  immediate meta_info type() const noexcept;
-};
-
-
-} // namespace detail
-
-// -------------------------------------------------------------------------- //
-// Declarations
-
-/// Compile-time information about a translation unit.
-class translation_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  constexpr translation_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a namespace.
-class namespace_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  namespace_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a variable.
-class variable_info : public detail::nullable<variable_info>,
-                      public detail::typed<variable_info> {
-  detail::meta_data m;
-
-  friend class meta_info;
-  friend class nullable<variable_info>;
-  friend class typed<variable_info>;
-
-  constexpr variable_info() : m() { }
-  constexpr variable_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a function.
-class function_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  function_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a class.
-class class_info : public detail::nullable<class_info>, 
-                   public detail::named<class_info> {
-  detail::meta_data m;
-
-  friend class meta_info;
-  friend class nullable<class_info>;
-  friend class named<class_info>;
-
-  constexpr class_info() : m() { }
-  constexpr class_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a union.
-class union_info : public detail::nullable<union_info>, 
-                   public detail::named<union_info> {
-  detail::meta_data m;
-
-  friend class meta_info;
-  friend class nullable<union_info>;
-  friend class named<union_info>;
-
-  constexpr union_info() : m() { }
-  constexpr union_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a member variable.
-class member_variable_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  member_variable_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a member function.
-class member_function_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  member_function_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a constructor.
-class constructor_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  constructor_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a destructor.
-class destructor_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  destructor_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about a conversion function.
-class conversion_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  conversion_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about an enumeration.
-class enum_info : public detail::nullable<enum_info>,
-                  public detail::named<enum_info> {
-  detail::meta_data m;
-
-  friend class meta_info;
-  friend class nullable<enum_info>;
-
-  constexpr enum_info() : m() { }
-  constexpr enum_info(detail::meta_data m) : m(m) { }
-public:
-  constexpr explicit operator bool() const noexcept { 
-    return m.category != null_construct; 
-  }
-};
-
-/// Compile-time information about an enumerator.
-class enumerator_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  enumerator_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-/// Compile-time information about an access specifier.
-class access_info {
-  detail::meta_data m;
-
-  friend class meta_info;
-
-  access_info(detail::meta_data m) : m(m) { }
-public:
-};
-
-
-// -------------------------------------------------------------------------- //
-// Types
-
-/// Compile-time information about the void type...
-///
-/// FIXME: this does not seem particularly useful.
-class void_type_info {
-  detail::meta_data m;
-public:
-};
-
-/// Compile-time information about an integral type.
-class integral_type_info {
-  detail::meta_data m;
-public:
-};
-
-/// Compile-time information about a floating point type.
-class floating_point_type_info {
-  detail::meta_data m;
-public:
-};
-
-/// Compile-time information about a reference type.
-class reference_type_info {
-  detail::meta_data m;
-public:
-};
-
-/// Compile-time information about a function type.
-class function_type_info {
-  detail::meta_data m;
-public:
-};
-
-/// Compile-time information about a pointer type.
-class pointer_type_info {
-  detail::meta_data m;
-public:
-};
-
-/// Compile-time information about a array type.
-class array_type_info {
-  detail::meta_data m;
-public:
-};
+immediate bool operator!=(meta_data a, meta_data b) noexcept {
+  return a.handle != b.handle;
+}
 
 // -------------------------------------------------------------------------- //
 // Variant
+
 /// The primary interface to reflection. This models the read-only version of
 /// the concept inherent in std::variant.
-class meta_info 
+///
+/// \todo Make private members private.
+struct meta_info 
 {
-  detail::meta_data m;
-public:
+  // private:
+  
+  meta_data data;
+
+  explicit immediate meta_info(meta_data md)
+    : data(md)
+  { }
+
+  static constexpr meta_data null = {};
+
+  //public:
+
   /// Default construct a null reflection.
-  constexpr meta_info() = default;
+  immediate meta_info() = default;
 
   /// Returns the construct discriminator.
-  immediate std::size_t index() const noexcept { 
-    return __reflect_index(m); 
+  immediate construct_kind index() const noexcept { 
+    return __reflect_index(data); 
   }
 
-  // This is never valueless.
+  /// This never throws, so is never exceptionless.
   constexpr bool valueless_by_exception() const noexcept { 
     return false; 
   }
 
+  immediate bool is_translation_unit() const noexcept {
+    return index() == translation_unit;
+  }
+  immediate bool is_namespace() const noexcept {
+    return index() == namespace_decl;
+  }
   immediate bool is_variable() const noexcept {
     return index() == variable_decl;
   }
-
+  immediate bool is_function() const noexcept {
+    return index() == function_decl;
+  }
+  immediate bool is_parameter() const noexcept {
+    return index() == parameter_decl;
+  }
   immediate bool is_class() const noexcept {
     return index() == class_decl;
   }
   immediate bool is_union() const noexcept {
     return index() == union_decl;
   }
+  immediate bool is_member_variable() const noexcept {
+    return index() == member_variable_decl;
+  }
+  immediate bool is_member_function() const noexcept {
+    return index() == member_function_decl;
+  }
+  immediate bool is_constructor() const noexcept {
+    return index() == constructor_decl;
+  }
+  immediate bool is_destructor() const noexcept {
+    return index() == destructor_decl;
+  }
+  immediate bool is_conversion() const noexcept {
+    return index() == conversion_decl;
+  }
   immediate bool is_enum() const noexcept {
     return index() == enum_decl;
   }
-
-
-  immediate variable_info get_variable() const noexcept {
-    return is_variable() ? variable_info{m} : variable_info{};
+  immediate bool is_enumerator() const noexcept {
+    return index() == enumerator_decl;
+  }
+  immediate bool is_access_specifier() const noexcept {
+    return index() == access_spec;
   }
 
-  immediate class_info get_class() const noexcept {
-    return is_class() ? class_info{m} : class_info{};
+  immediate bool is_void_type() const noexcept {
+    return index() == void_type;
   }
-  immediate union_info get_union() const noexcept {
-    return is_union() ? union_info{m} : union_info{};
+  immediate bool is_character_type() const noexcept {
+    return index() == character_type;
   }
-  immediate enum_info get_enum() const noexcept {
-    return is_enum() ? enum_info{m} : enum_info{};
+  immediate bool is_integral_type() const noexcept {
+    return index() == integral_type;
   }
+  immediate bool is_floating_point_type() const noexcept {
+    return index() == floating_point_type;
+  }
+  immediate bool is_reference_type() const noexcept {
+    return index() == reference_type;
+  }
+  immediate bool is_function_type() const noexcept {
+    return index() == function_type;
+  }
+  immediate bool is_pointer_type() const noexcept {
+    return index() == pointer_type;
+  }
+  immediate bool is_array_type() const noexcept {
+    return index() == array_type;
+  }
+
+  // Convenience functions
 
   immediate const char* name() const noexcept {
-    return __reflect_name(m);
+    return __reflect_name(data);
   }
 };
 
+immediate bool operator==(meta_info a, meta_info b) noexcept {
+  return a.data == b.data;
+}
+
+immediate bool operator!=(meta_info a, meta_info b) noexcept {
+  return a.data != b.data;
+}
+
+// -------------------------------------------------------------------------- //
+// Iterators
+
+struct decl_iterator
+{
+  using value_type = meta_info;
+  using reference = meta_info;
+  using pointer = void;
+  using distance_type = std::ptrdiff_t;
+  using iterator_category = std::forward_iterator_tag;
+
+  meta_info curr; // The current declaration.
+
+  immediate decl_iterator() = default;
+
+  immediate decl_iterator(meta_info mi)
+    : curr(mi)
+  { }
+
+  meta_info operator*() const noexcept {
+    return curr;
+  }
+
+  decl_iterator& operator++() noexcept {
+    curr = __reflect_next_member(curr);
+    return *this;
+  }
+  decl_iterator operator++(int) noexcept {
+    decl_iterator tmp = *this;
+    curr = __reflect_next_member(curr);
+    return tmp;
+  }
+
+  friend immediate bool operator==(decl_iterator a, decl_iterator b) noexcept {
+    return a.curr == b.curr;
+  }
+  friend immediate bool operator!=(decl_iterator a, decl_iterator b) noexcept {
+    return a.curr == b.curr;
+  }
+};
+
+struct decl_range
+{
+  decl_iterator begin() { return first; }
+  decl_iterator end() { return limit; }
+
+  decl_iterator first;
+  decl_iterator limit;
+};
+
+// -------------------------------------------------------------------------- //
+// Declarations
+
+/// Compile-time information about a translation unit.
+struct translation_info {
+  meta_data data;
+
+  immediate translation_info() = default;
+  
+  immediate translation_info(meta_info mi)
+    : data(mi.is_translation_unit() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+};
+
+/// Compile-time information about a namespace.
+struct namespace_info {
+  meta_data data;
+
+  immediate namespace_info() = default;
+  
+  immediate namespace_info(meta_info mi)
+    : data(mi.is_namespace() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the nested members of the entity.
+  decl_range members() const noexcept {
+    return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  }
+};
+
+/// Compile-time information about a variable.
+struct variable_info {
+  meta_data data;
+
+  immediate variable_info() = default;
+  
+  immediate variable_info(meta_info mi)
+    : data(mi.is_variable() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about a function.
+struct function_info {
+  meta_data data;
+
+  immediate function_info() = default;
+
+  immediate function_info(meta_info mi)
+    : data(mi.is_function() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about a parameter.
+struct parameter_info {
+  meta_data data;
+
+  immediate parameter_info() = default;
+
+  immediate parameter_info(meta_info mi)
+    : data(mi.is_parameter() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about a class.
+struct class_info {
+  meta_data data;
+
+  immediate class_info() = default;
+  
+  immediate class_info(meta_info mi)
+    : data(mi.is_class() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the nested members of the entity.
+  decl_range members() const noexcept {
+    return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  }
+};
+
+/// Compile-time information about a union.
+struct union_info {
+  meta_data data;
+
+  immediate union_info() = default;
+  
+  immediate union_info(meta_info mi)
+    : data(mi.is_union() ? mi.data :  mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the nested members of the entity.
+  decl_range members() const noexcept {
+    return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  }
+};
+
+/// Compile-time information about a member variable.
+struct member_variable_info {
+  meta_data data;
+
+  immediate member_variable_info() = default;
+
+  immediate member_variable_info(meta_info mi)
+    : data(mi.is_member_variable() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about a member function.
+struct member_function_info {
+  meta_data data;
+
+  immediate member_function_info() = default;
+
+  immediate member_function_info(meta_info mi)
+    : data(mi.is_member_function() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about a constructor.
+struct constructor_info {
+  meta_data data;
+
+  immediate constructor_info() = default;
+
+  immediate constructor_info(meta_info mi)
+    : data(mi.is_constructor() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about a destructor.
+struct destructor_info {
+  meta_data data;
+
+  immediate destructor_info() = default;
+
+  immediate destructor_info(meta_info mi)
+    : data(mi.is_destructor() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about a conversion function.
+struct conversion_info {
+  meta_data data;
+
+  immediate conversion_info() = default;
+
+  immediate conversion_info(meta_info mi)
+    : data(mi.is_conversion() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about an enumeration.
+struct enum_info {
+  meta_data data;
+
+  immediate enum_info() = default;
+  
+  immediate enum_info(meta_info mi)
+    : data(mi.is_enum() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the nested members of the entity.
+  decl_range members() const noexcept {
+    return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  }
+};
+
+/// Compile-time information about an enumerator.
+struct enumerator_info {
+  meta_data data;
+
+  immediate enumerator_info() = default;
+
+  immediate enumerator_info(meta_info mi)
+    : data(mi.is_enumerator() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+
+  /// Returns the type of the entity.
+  immediate meta_info type() const noexcept {
+    return __reflect_type(data);
+  }
+};
+
+/// Compile-time information about an access specifier.
+struct access_info {
+  meta_data data;
+
+  immediate access_info() = default;
+
+  immediate access_info(meta_info mi)
+    : data(mi.is_access_specifier() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+};
+
+
+// -------------------------------------------------------------------------- //
+// Types
+
+/// Compile-time information about the void type.
+struct void_type_info {
+  meta_data data;
+
+  immediate void_type_info() = default;
+
+  immediate void_type_info(meta_info mi)
+    : data(mi.is_void_type() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+};
+
+/// Compile-time information about a character type.
+struct character_type_info {
+  meta_data data;
+
+  immediate character_type_info() = default;
+
+  immediate character_type_info(meta_info mi)
+    : data(mi.is_character_type() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+};
+
+/// Compile-time information about an integral type.
+struct integral_type_info {
+  meta_data data;
+
+  immediate integral_type_info() = default;
+
+  immediate integral_type_info(meta_info mi)
+    : data(mi.is_integral_type() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+};
+
+/// Compile-time information about a floating point type.
+struct floating_point_type_info {
+  meta_data data;
+
+  immediate floating_point_type_info() = default;
+
+  immediate floating_point_type_info(meta_info mi)
+    : data(mi.is_floating_point_type() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+};
+
+/// Compile-time information about a reference type.
+struct reference_type_info {
+  meta_data data;
+
+  immediate reference_type_info() = default;
+
+  immediate reference_type_info(meta_info mi)
+    : data(mi.is_reference_type() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+};
+
+/// Compile-time information about a function type.
+struct function_type_info {
+  meta_data data;
+
+  immediate function_type_info() = default;
+
+  immediate function_type_info(meta_info mi)
+    : data(mi.is_function_type() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+};
+
+/// Compile-time information about a pointer type.
+struct pointer_type_info {
+  meta_data data;
+
+  immediate pointer_type_info() = default;
+
+  immediate pointer_type_info(meta_info mi)
+    : data(mi.is_pointer_type() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+};
+
+/// Compile-time information about a array type.
+struct array_type_info {
+  meta_data data;
+
+  immediate array_type_info() = default;
+
+  immediate array_type_info(meta_info mi)
+    : data(mi.is_array_type() ? mi.data : mi.null)
+  { }
+
+  /// Converts to true when the object has a value.
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
+  }
+
+  /// Returns true when the object is non-null.
+  immediate bool has_value() const noexcept { 
+    return !data.null(); 
+  }
+
+  /// Returns the name of the entity.
+  immediate const char* name() const noexcept {
+    return __reflect_name(data);
+  }
+};
+
+#if 0
 // -------------------------------------------------------------------------- //
 // Implementations
-
 
 namespace detail {
 template<typename Derived>
@@ -378,8 +920,7 @@ typed<Derived>::type() const noexcept {
   const Derived& self = static_cast<const Derived&>(*this);
   return __reflect_type(self.m);
 }
-
-} // namespace detail
+#endif
 
 } // inline namespace v1
 } // namespace meta

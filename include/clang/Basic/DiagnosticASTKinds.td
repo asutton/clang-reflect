@@ -280,9 +280,13 @@ def err_unsupported_ast_node: Error<"cannot import unsupported AST node %0">;
 let CategoryName = "Reflection Issue" in {
 def note_reflection_not_known : Note<
   "value does not refer to a reflected construct">;
+def note_reflection_not_declared : Note<
+  "reflected %select{entity|construct}0 is not a declaration">;
 def note_reflection_not_named : Note<
   "reflected %select{entity|construct}0 does not have a name">;
 def note_reflection_not_typed : Note<
   "reflected %select{entity|construct}0 does not have a type">;
+def note_reflection_no_members : Note<
+  "reflected %select{declaration|entity|construct}0 does not have members">;
 }
 }

@@ -5001,6 +5001,42 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
   }
 }
 
+/// Build a reflection of the declaration in Result.
+static void MakeReflection(ASTContext &Ctx, Decl *D, APValue &Result) {
+  Result = APValue(APValue::UninitStruct(), 0, 1);
+  if (D) {
+    Reflection Ref = Reflection::ReflectDeclaration(D);
+    Ctx.AddReflection(Ref);
+    Result.getStructField(0) = Ref.getMetaData(Ctx);
+  } else {
+    // TODO: Add getEmptyMetaData() to Reflection.
+    APSInt Null = Ctx.MakeIntValue(0, Ctx.UnsignedIntTy);
+    APSInt Invalid = Ctx.MakeIntValue(0, Ctx.getSizeType());
+    APValue MetaData(APValue::UninitStruct(), 0, 2);
+    MetaData.getStructField(0) = APValue(Null);
+    MetaData.getStructField(0) = APValue(Invalid);
+    Result.getStructField(0) = MetaData;
+  }
+}
+
+/// Build a reflection of the declaration in Result.
+static void MakeReflection(ASTContext &Ctx, const Type *T, APValue &Result) {
+  Result = APValue(APValue::UninitStruct(), 0, 1);
+  if (T) {
+    Reflection Ref = Reflection::ReflectType(const_cast<Type*>(T));
+    Ctx.AddReflection(Ref);
+    Result.getStructField(0) = Ref.getMetaData(Ctx);
+  } else {
+    // TODO: Add getEmptyMetaData() to Reflection.
+    APSInt Null = Ctx.MakeIntValue(0, Ctx.UnsignedIntTy);
+    APSInt Invalid = Ctx.MakeIntValue(0, Ctx.getSizeType());
+    APValue MetaData(APValue::UninitStruct(), 0, 2);
+    MetaData.getStructField(0) = APValue(Null);
+    MetaData.getStructField(0) = APValue(Invalid);
+    Result.getStructField(0) = MetaData;
+  }
+}
+
 template<typename Derived>
 bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
                                               const CXXReflectionTraitExpr *E) {
@@ -5041,6 +5077,17 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       llvm::APSInt Index = Info.Ctx.MakeIntValue(CK, E->getType());
       return DerivedSuccess(APValue(Index), E);
     }
+    case URT_ReflectContext: {
+      if (Decl *D = R.getAsDeclaration()) {
+        Decl *Owner = Decl::castFromDeclContext(D->getDeclContext());
+        APValue Result;
+        MakeReflection(Info.Ctx, Owner, Result);
+        return DerivedSuccess(Result, E);
+      }
+      CCEDiag(E0, diag::note_reflection_not_declared) << 0;
+      return false;
+    }
+
     case URT_ReflectName: {
       if (NamedDecl *ND = dyn_cast_or_null<NamedDecl>(R.getAsDeclaration())) {
         if (IdentifierInfo *II = ND->getIdentifier()) {
@@ -5066,16 +5113,8 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
     case URT_ReflectType: {
       if (ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration())) {
         QualType CanTy = Info.Ctx.getCanonicalType(VD->getType());
-        Type *T = const_cast<Type*>(CanTy.getTypePtr());
-        Reflection Ref = Reflection::ReflectType(T);
-
-        // Active the reflection for subsequent lookup.
-        Info.Ctx.AddReflection(Ref);
-
-        // Create the meta_info wrapper object and populate the nested
-        // meta_data structure.
-        APValue Result(APValue::UninitStruct(), 0, 1);
-        Result.getStructField(0) = Ref.getMetaData(Info.Ctx);
+        APValue Result;
+        MakeReflection(Info.Ctx, CanTy.getTypePtr(), Result);
         return DerivedSuccess(Result, E);
       }
       CCEDiag(E0, diag::note_reflection_not_typed) << 0;
@@ -5085,6 +5124,39 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       llvm_unreachable("not implemented");
     case URT_ReflectTraits:
       llvm_unreachable("not implemented");
+    case URT_ReflectFirstMember: {
+      if (Decl *D = R.getAsDeclaration()) {
+        DeclContext *DC;
+        if (TranslationUnitDecl *TU = dyn_cast<TranslationUnitDecl>(D))
+          DC = TU;
+        else if (NamespaceDecl *NS = dyn_cast<NamespaceDecl>(D))
+          DC = NS;
+        else if (TagDecl *TD = dyn_cast<TagDecl>(D))
+          DC = TD;
+        else
+          DC = nullptr;
+        if (DC) {
+          auto Iter = DC->decls_begin();
+          Decl *First = (Iter == DC->decls_end() ? nullptr : *Iter);
+          APValue Result;
+          MakeReflection(Info.Ctx, First, Result);
+          return DerivedSuccess(Result, E);
+        }
+      }
+      CCEDiag(E0, diag::note_reflection_no_members) << 1;
+      return false;
+    }
+    case URT_ReflectNextMember: {
+      if (Decl *D = R.getAsDeclaration()) {
+        Decl *Next = D->getNextDeclInContext();
+        APValue Result;
+        MakeReflection(Info.Ctx, Next, Result);
+        return DerivedSuccess(Result, E);
+      }
+      CCEDiag(E0, diag::note_reflection_not_declared) << 0;
+      return false;
+    }
+    
     case URT_ReflectPrint:
       llvm_unreachable("not implemented");
   }
