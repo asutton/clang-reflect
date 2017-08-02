@@ -67,44 +67,46 @@ NamespaceDecl *Sema::getCppxMetaNamespace(SourceLocation Loc) {
   return CppxMetaNamespace;
 }
 
-/// \brief Returns the class type cpp::meta::meta_info.
-QualType Sema::getMetaInfoType(SourceLocation Loc) {
-  if (MetaInfoDecl)
-    return Context.getRecordType(MetaInfoDecl);
-
-  NamespaceDecl *Meta = getCppxMetaNamespace(Loc);
-  if (!Meta)
-    return QualType();
-
-  // Lookup the meta_info class.
-  IdentifierInfo *II = &PP.getIdentifierTable().get("meta_info");
-  LookupResult R(*this, II, SourceLocation(), LookupAnyName);
-  LookupQualifiedName(R, Meta);
-  CXXRecordDecl *Class = R.getAsSingle<CXXRecordDecl>();
-  if (!Class) {
-    Diag(Loc, diag::err_need_header_before_reflexpr);
-    return QualType();
-  }
-  MetaInfoDecl = Class;
-  return Context.getRecordType(MetaInfoDecl);
-}
-
-// TODO: Make this a member and cache the result. Just like above.
-static QualType getConstructKindType(Sema &SemaRef, SourceLocation Loc) {
+static QualType LookupMetaDecl(Sema &SemaRef, const char* Name, 
+                               SourceLocation Loc) {
   NamespaceDecl *Meta = SemaRef.getCppxMetaNamespace(Loc);
   if (!Meta)
     return QualType();
 
   // Lookup the meta_info class.
-  IdentifierInfo *II = &SemaRef.PP.getIdentifierTable().get("construct_kind");
+  IdentifierInfo *II = &SemaRef.PP.getIdentifierTable().get(Name);
   LookupResult R(SemaRef, II, SourceLocation(), Sema::LookupAnyName);
   SemaRef.LookupQualifiedName(R, Meta);
-  EnumDecl *Enum = R.getAsSingle<EnumDecl>();
-  if (!Enum) {
+  TagDecl *TD = R.getAsSingle<TagDecl>();
+  if (!TD) {
     SemaRef.Diag(Loc, diag::err_need_header_before_reflexpr);
     return QualType();
   }
-  return SemaRef.Context.getTagDeclType(Enum);
+  return SemaRef.Context.getTagDeclType(TD);
+}
+
+/// \brief Returns the class type cpp::meta::meta_info.
+QualType Sema::getMetaInfoType(SourceLocation Loc) {
+  if (MetaInfoDecl)
+    return Context.getRecordType(MetaInfoDecl);
+
+  QualType MetaInfoTy = LookupMetaDecl(*this, "meta_info", Loc);
+  MetaInfoDecl = MetaInfoTy->getAsCXXRecordDecl();
+  return MetaInfoTy;
+}
+
+// TODO: Make this a member and cache the result. Just like above.
+static QualType getMetaDataType(Sema &SemaRef, SourceLocation Loc) {
+  QualType MetaDataTy = LookupMetaDecl(SemaRef, "meta_data", Loc);
+  assert(MetaDataTy->isRecordType() && "Expected record type");
+  return MetaDataTy;
+}
+
+// TODO: Make this a member and cache the result. Just like above.
+static QualType getConstructKindType(Sema &SemaRef, SourceLocation Loc) {
+  QualType KindTy = LookupMetaDecl(SemaRef, "construct_kind", Loc);
+  assert(KindTy->isEnumeralType() && "Expected enum type");
+  return KindTy;
 }
 
 /// Lookup the declaration named by SS and Id. Return
@@ -207,36 +209,73 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
   return new (Context) CXXConstantExpr(Reflect, std::move(Result.Val));
 }
 
+// Check that the argument has the right type. Ignore references and
+// cv-qualifiers on the expression.
+static bool CheckOperandType(Sema &SemaRef, Expr *E, QualType Target) {
+  QualType Source = E->getType();
+  if (Source->isReferenceType()) 
+    Source = Source->getPointeeType();
+  Source = Source.getUnqualifiedType();
+  if (Source != Target) {
+    SemaRef.Diag(E->getLocStart(), diag::err_reflection_trait_wrong_type) 
+        << Target;
+    return false;
+  }
+  return true;
+}
+
 ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                          ReflectionTrait Kind,
                                          ArrayRef<Expr *> Args,
                                          SourceLocation RParenLoc) {
 
-  // FIXME: Check operand types.
+  QualType MetaDataTy = getMetaDataType(*this, TraitLoc);
+  QualType MetaInfoTy = getMetaInfoType(TraitLoc);
 
-  // FIXME: Actually check the types of operands.
+  // Don't do any processing if any arguments are dependent.
+  for (std::size_t I = 0; I < Args.size(); ++I) {
+    Expr *Arg = Args[0];
+    if (Arg->isTypeDependent() || Arg->isValueDependent())
+      return new (Context) CXXReflectionTraitExpr(Context, Context.DependentTy, 
+                                                  Kind, TraitLoc, Args, 
+                                                  RParenLoc);
+  }
+
+  // Rewrite the arguments, converting each to an rvalue, if needed.
+  SmallVector<Expr *, 2> Operands(Args.size());
+  for (std::size_t I = 0; I < Args.size(); ++I) {
+    if (Args[I]->isGLValue())
+      Operands[I] = ImplicitCastExpr::Create(Context, Args[0]->getType(), 
+                                             CK_LValueToRValue, Args[0], 
+                                             nullptr, VK_RValue);
+  }
+
+  // Check the type of the first operand. ReflectPrint is polymorphic.
+  if (Kind != URT_ReflectPrint) {
+    if (!CheckOperandType(*this, Operands[0], MetaDataTy))
+      return false;
+  }
+
+  // FIXME: If the trait allows multiple arguments, check those.
   QualType ResultTy;
   switch (Kind) {
     case URT_ReflectIndex:
       ResultTy = getConstructKindType(*this, TraitLoc);
       break;
     case URT_ReflectContext:
-      ResultTy = getMetaInfoType(TraitLoc);
+      ResultTy = MetaInfoTy;
       break;
     case URT_ReflectName:
       ResultTy = Context.getPointerType(Context.CharTy.withConst());
       break;
     case URT_ReflectType:
-      ResultTy = getMetaInfoType(TraitLoc);
+      ResultTy = MetaInfoTy;
       break;
     case URT_ReflectValue:
-      // FIXME: This depends on the reflected construct. Could be a reference,
-      // function pointer, or member pointer.
+      // FIXME: Wrong!
       ResultTy = Context.IntTy;
       break;
     case URT_ReflectTraits:
-      // FIXME: This depends on the reflected construct. Could be any one of
-      // a number of bit fields.
       ResultTy = Context.UnsignedIntTy;
       break;
     case URT_ReflectFirstMember:
@@ -244,10 +283,10 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
       // NOTE: The result type is implementation defined. Because decls are
       // linked into lists, we can simply return their reflections and build
       // iterators in the library.
-      ResultTy = getMetaInfoType(TraitLoc);
+      ResultTy = MetaInfoTy;
       break;
     case URT_ReflectPrint:
-      ResultTy = Context.VoidTy;
+      ResultTy = Context.IntTy;
       break;
   }
 
@@ -255,5 +294,5 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
     return ExprError();
 
   return new (Context) CXXReflectionTraitExpr(Context, ResultTy, Kind, TraitLoc,
-                                              Args, RParenLoc);
+                                              Operands, RParenLoc);
 }

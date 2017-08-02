@@ -552,6 +552,7 @@ namespace  {
     void VisitSizeOfPackExpr(const SizeOfPackExpr *Node);
     void
     VisitCXXDependentScopeMemberExpr(const CXXDependentScopeMemberExpr *Node);
+    void VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *Node);
 
     // ObjC
     void VisitObjCAtCatchStmt(const ObjCAtCatchStmt *Node);
@@ -2225,6 +2226,35 @@ void ASTDumper::VisitCXXDependentScopeMemberExpr(
     const CXXDependentScopeMemberExpr *Node) {
   VisitExpr(Node);
   OS << " " << (Node->isArrow() ? "->" : ".") << Node->getMember();
+}
+
+static const char* GetReflectionTraitName(const CXXReflectionTraitExpr *E) {
+  switch (E->getTrait()) {
+  case URT_ReflectIndex:
+    return "index";
+  case URT_ReflectContext:
+    return "context";
+  case URT_ReflectName:
+    return "name";
+  case URT_ReflectType:
+    return "type";
+  case URT_ReflectValue:
+    return "value";
+  case URT_ReflectTraits:
+    return "traits";
+  case URT_ReflectFirstMember:
+    return "first-member";
+  case URT_ReflectNextMember:
+    return "next-member";
+  case URT_ReflectPrint:
+    return "print";
+  }
+}
+
+void ASTDumper::VisitCXXReflectionTraitExpr(
+    const CXXReflectionTraitExpr *Node) {
+  VisitExpr(Node);
+  OS << " " << GetReflectionTraitName(Node);
 }
 
 //===----------------------------------------------------------------------===//

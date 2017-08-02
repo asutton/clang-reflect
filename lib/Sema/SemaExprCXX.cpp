@@ -7626,7 +7626,8 @@ EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
   SmallVector<PartialDiagnosticAt, 4> Diags;
   Expr::EvalResult Result;
   Result.Diag = &Diags;
-  if (E->EvaluateAsAnyValue(Result, SemaRef.Context))
+  bool OK = E->EvaluateAsAnyValue(Result, SemaRef.Context);
+  if (OK || E->getType()->isVoidType())
     return new (SemaRef.Context) CXXConstantExpr(E, std::move(Result.Val));
 
   bool IsMember = isa<CXXMemberCallExpr>(E);

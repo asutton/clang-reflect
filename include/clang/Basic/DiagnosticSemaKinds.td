@@ -2362,6 +2362,8 @@ def err_reflect_undeclared_id : Error<"reflection of undeclared identifier %0">;
 def err_reflect_ambiguous_id : Error<"reflection of ambiguous identifier %0">;
 def err_reflect_overloaded_id : Error<"reflection of overloaded identifier %0">;
 def err_reflection_failed : Error<"reflection failed">;
+def err_reflection_trait_wrong_type : Error<
+  "operand does not have type %0">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<

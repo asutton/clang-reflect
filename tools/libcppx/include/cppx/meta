@@ -79,15 +79,16 @@ immediate bool operator!=(meta_data a, meta_data b) noexcept {
   return a.handle != b.handle;
 }
 
+
+
 // -------------------------------------------------------------------------- //
-// Variant
+// Meta info variant
 
 /// The primary interface to reflection. This models the read-only version of
 /// the concept inherent in std::variant.
 ///
 /// \todo Make private members private.
-struct meta_info 
-{
+struct meta_info {
   // private:
   
   meta_data data;
@@ -99,6 +100,9 @@ struct meta_info
   static constexpr meta_data null = {};
 
   //public:
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   /// Default construct a null reflection.
   immediate meta_info() = default;
@@ -189,6 +193,10 @@ struct meta_info
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
+
+  immediate int print() const noexcept {
+    return __reflect_print(data);
+  }
 };
 
 immediate bool operator==(meta_info a, meta_info b) noexcept {
@@ -207,7 +215,7 @@ struct decl_iterator
   using value_type = meta_info;
   using reference = meta_info;
   using pointer = void;
-  using distance_type = std::ptrdiff_t;
+  using difference_type = std::ptrdiff_t;
   using iterator_category = std::forward_iterator_tag;
 
   meta_info curr; // The current declaration.
@@ -218,17 +226,17 @@ struct decl_iterator
     : curr(mi)
   { }
 
-  meta_info operator*() const noexcept {
+  immediate meta_info operator*() const noexcept {
     return curr;
   }
 
-  decl_iterator& operator++() noexcept {
-    curr = __reflect_next_member(curr);
+  immediate decl_iterator& operator++() noexcept {
+    curr = __reflect_next_member(curr.data);
     return *this;
   }
-  decl_iterator operator++(int) noexcept {
+  immediate decl_iterator operator++(int) noexcept {
     decl_iterator tmp = *this;
-    curr = __reflect_next_member(curr);
+    curr = __reflect_next_member(curr.data);
     return tmp;
   }
 
@@ -236,14 +244,14 @@ struct decl_iterator
     return a.curr == b.curr;
   }
   friend immediate bool operator!=(decl_iterator a, decl_iterator b) noexcept {
-    return a.curr == b.curr;
+    return a.curr != b.curr;
   }
 };
 
 struct decl_range
 {
-  decl_iterator begin() { return first; }
-  decl_iterator end() { return limit; }
+  immediate decl_iterator begin() { return first; }
+  immediate decl_iterator end() { return limit; }
 
   decl_iterator first;
   decl_iterator limit;
@@ -255,6 +263,9 @@ struct decl_range
 /// Compile-time information about a translation unit.
 struct translation_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate translation_info() = default;
   
@@ -276,6 +287,9 @@ struct translation_info {
 /// Compile-time information about a namespace.
 struct namespace_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate namespace_info() = default;
   
@@ -299,7 +313,7 @@ struct namespace_info {
   }
 
   /// Returns the nested members of the entity.
-  decl_range members() const noexcept {
+  immediate decl_range members() const noexcept {
     return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
   }
 };
@@ -307,6 +321,9 @@ struct namespace_info {
 /// Compile-time information about a variable.
 struct variable_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate variable_info() = default;
   
@@ -339,6 +356,9 @@ struct variable_info {
 struct function_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate function_info() = default;
 
   immediate function_info(meta_info mi)
@@ -369,6 +389,9 @@ struct function_info {
 /// Compile-time information about a parameter.
 struct parameter_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate parameter_info() = default;
 
@@ -401,6 +424,9 @@ struct parameter_info {
 struct class_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate class_info() = default;
   
   immediate class_info(meta_info mi)
@@ -423,7 +449,7 @@ struct class_info {
   }
 
   /// Returns the nested members of the entity.
-  decl_range members() const noexcept {
+  immediate decl_range members() const noexcept {
     return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
   }
 };
@@ -431,6 +457,9 @@ struct class_info {
 /// Compile-time information about a union.
 struct union_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate union_info() = default;
   
@@ -454,7 +483,7 @@ struct union_info {
   }
 
   /// Returns the nested members of the entity.
-  decl_range members() const noexcept {
+  immediate decl_range members() const noexcept {
     return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
   }
 };
@@ -462,6 +491,9 @@ struct union_info {
 /// Compile-time information about a member variable.
 struct member_variable_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate member_variable_info() = default;
 
@@ -494,6 +526,9 @@ struct member_variable_info {
 struct member_function_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate member_function_info() = default;
 
   immediate member_function_info(meta_info mi)
@@ -524,6 +559,9 @@ struct member_function_info {
 /// Compile-time information about a constructor.
 struct constructor_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate constructor_info() = default;
 
@@ -556,6 +594,9 @@ struct constructor_info {
 struct destructor_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate destructor_info() = default;
 
   immediate destructor_info(meta_info mi)
@@ -586,6 +627,9 @@ struct destructor_info {
 /// Compile-time information about a conversion function.
 struct conversion_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate conversion_info() = default;
 
@@ -618,6 +662,9 @@ struct conversion_info {
 struct enum_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate enum_info() = default;
   
   immediate enum_info(meta_info mi)
@@ -640,7 +687,7 @@ struct enum_info {
   }
 
   /// Returns the nested members of the entity.
-  decl_range members() const noexcept {
+  immediate decl_range members() const noexcept {
     return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
   }
 };
@@ -648,6 +695,9 @@ struct enum_info {
 /// Compile-time information about an enumerator.
 struct enumerator_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate enumerator_info() = default;
 
@@ -680,6 +730,9 @@ struct enumerator_info {
 struct access_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate access_info() = default;
 
   immediate access_info(meta_info mi)
@@ -704,6 +757,9 @@ struct access_info {
 /// Compile-time information about the void type.
 struct void_type_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate void_type_info() = default;
 
@@ -731,6 +787,9 @@ struct void_type_info {
 struct character_type_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate character_type_info() = default;
 
   immediate character_type_info(meta_info mi)
@@ -756,6 +815,9 @@ struct character_type_info {
 /// Compile-time information about an integral type.
 struct integral_type_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate integral_type_info() = default;
 
@@ -783,6 +845,9 @@ struct integral_type_info {
 struct floating_point_type_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate floating_point_type_info() = default;
 
   immediate floating_point_type_info(meta_info mi)
@@ -808,6 +873,9 @@ struct floating_point_type_info {
 /// Compile-time information about a reference type.
 struct reference_type_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate reference_type_info() = default;
 
@@ -835,6 +903,9 @@ struct reference_type_info {
 struct function_type_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate function_type_info() = default;
 
   immediate function_type_info(meta_info mi)
@@ -860,6 +931,9 @@ struct function_type_info {
 /// Compile-time information about a pointer type.
 struct pointer_type_info {
   meta_data data;
+
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
 
   immediate pointer_type_info() = default;
 
@@ -887,6 +961,9 @@ struct pointer_type_info {
 struct array_type_info {
   meta_data data;
 
+  /// Denotes that this is a reflection.
+  static constexpr bool is_reflection_type = true;
+
   immediate array_type_info() = default;
 
   immediate array_type_info(meta_info mi)
@@ -909,18 +986,30 @@ struct array_type_info {
   }
 };
 
-#if 0
-// -------------------------------------------------------------------------- //
-// Implementations
 
-namespace detail {
-template<typename Derived>
-immediate meta_info
-typed<Derived>::type() const noexcept {
-  const Derived& self = static_cast<const Derived&>(*this);
-  return __reflect_type(self.m);
-}
-#endif
+// -------------------------------------------------------------------------- //
+// Utilities
+
+struct compiler_type {
+  static immediate void print(const char* str) noexcept {
+    (void)__reflect_print(str);
+  }
+
+  template<typename T>
+  static immediate std::enable_if_t<std::is_integral_v<T>, void>
+  print(T n) noexcept {
+    (void)__reflect_print(n);
+  }
+
+  // Specialization for reflected types.
+  template<typename T>
+  static immediate std::enable_if_t<T::is_reflection_type, void>
+  print(T info) noexcept {
+    (void)__reflect_print(info.data);
+  }
+
+} compiler;
+
 
 } // inline namespace v1
 } // namespace meta

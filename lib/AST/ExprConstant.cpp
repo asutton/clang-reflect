@@ -4966,6 +4966,7 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
     case Decl::EnumConstant:
       return CK_EnumeratorDecl;
     default:
+      D->dump();
       llvm_unreachable("reflection of unhandled declaration kind");
     }
   } else if (Type *T = R.getAsType()) {
@@ -5014,7 +5015,7 @@ static void MakeReflection(ASTContext &Ctx, Decl *D, APValue &Result) {
     APSInt Invalid = Ctx.MakeIntValue(0, Ctx.getSizeType());
     APValue MetaData(APValue::UninitStruct(), 0, 2);
     MetaData.getStructField(0) = APValue(Null);
-    MetaData.getStructField(0) = APValue(Invalid);
+    MetaData.getStructField(1) = APValue(Invalid);
     Result.getStructField(0) = MetaData;
   }
 }
@@ -5037,6 +5038,78 @@ static void MakeReflection(ASTContext &Ctx, const Type *T, APValue &Result) {
   }
 }
 
+static bool DecodeReflection(EvalInfo &Info, Reflection &R, 
+                             const CXXReflectionTraitExpr *E,
+                             SmallVectorImpl<APValue> &Args) {
+  assert(Args[0].isStruct());
+
+  // Decode the reflected handle.
+  APValue &HandleField = Args[0].getStructField(1);
+  std::uintptr_t Handle = HandleField.getInt().getExtValue();
+  if (!Info.Ctx.GetReflection(Handle, R)) {
+    Info.CCEDiag(E->getArg(0), diag::note_reflection_not_known);
+    return false;
+  }
+  return true;
+}
+
+// Returns true if T is 'const char*'.
+static bool isConstCharPtr(QualType T) {
+  if (const PointerType *P = T->getAs<PointerType>()) {
+    T = P->getPointeeType();
+    return T->isCharType() && T.isConstQualified();
+  }
+  return false;
+}
+
+static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E, 
+                  SmallVectorImpl<APValue> &Args) {
+  Expr *E0 = E->getArg(0);
+  QualType T = E0->getType();
+  if (T->isIntegralType(Info.Ctx)) {
+    llvm::errs() << Args[0].getInt().getExtValue() << '\n';
+    return true;
+  } else if (isConstCharPtr(T)) {
+    // This should be a string literal.
+    assert(Args[0].isLValue() && "Expected lvalue");
+    APValue::LValueBase Base = Args[0].getLValueBase();
+    assert(Base.is<const Expr *>() && "Expected a string literal initializer");
+    const StringLiteral *Message 
+        = cast<StringLiteral>(Base.get<const Expr *>());
+
+    // Evaluate the message so that we can transform it into a string.
+    SmallString<256> Buf;
+    llvm::raw_svector_ostream OS(Buf);
+    Message->outputString(OS);
+    std::string NonQuote(Buf.str(), 1, Buf.size() - 2);
+    llvm::errs() << NonQuote << '\n';
+    return true;
+  } else if (T->isRecordType()) {
+    // FIXME: The predicate is quite a bit more complex. The argument could
+    // be any of the reflection classes in cppx::meta (but not meta_data).
+    Reflection R;
+    if (!DecodeReflection(Info, R, E, Args))
+      return false;
+
+    if (Decl *D = R.getAsDeclaration()) {
+      D->print(llvm::errs());
+      llvm::errs() << '\n';
+    } else if (Type *T = R.getAsType()) {
+      QualType QT(T, 0);
+      QT.print(llvm::errs(), Info.Ctx.getPrintingPolicy());
+      llvm::errs() << '\n';
+    } else {
+      // FIXME: Provide a better diagnostic. Should be 'cannot print'.
+      Info.CCEDiag(E0, diag::note_invalid_subexpr_in_const_expr);
+    }
+    return true;
+  }
+
+  // FIXME: Provide a better diagnostic.
+  Info.CCEDiag(E0, diag::note_invalid_subexpr_in_const_expr);
+  return false;
+}
+
 template<typename Derived>
 bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
                                               const CXXReflectionTraitExpr *E) {
@@ -5048,28 +5121,22 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       return false;
   }
 
-  // Get the meta_info object for unpacking.
-  const Expr* E0 = E->getArg(0);
-  APValue *MetaInfo = &Args[0];
-  if (MetaInfo->isLValue()) {
-    QualType T = E0->getType();
-    LValue LV;
-    LV.setFrom(Info.Ctx, *MetaInfo);
-    CompleteObject CO = findCompleteObject(Info, E0, AK_Read, LV, T);
-    if (!CO)
+  if (E->getTrait() == URT_ReflectPrint) {
+    // Never evaluate if we're not computing a value.
+    if (Info.checkingPotentialConstantExpression())
       return false;
-    MetaInfo = CO.Value;
-  } 
-  assert(MetaInfo && "No meta_info object");
-  APValue &MetaData = MetaInfo->getStructField(0);
-
-  // Decode the reflection.
-  std::uintptr_t Handle = MetaData.getStructField(1).getInt().getExtValue();
-  Reflection R;
-  if (!Info.Ctx.GetReflection(Handle, R)) {
-    CCEDiag(E->getArg(0), diag::note_reflection_not_known);
-    return false;
+    if (Info.checkingForOverflow())
+      return false;
+    if (!Print(Info, E, Args))
+      return false;
+    APValue Zero(Info.Ctx.MakeIntValue(0, Info.Ctx.IntTy));
+    return DerivedSuccess(Zero, E);
   }
+
+  // Get the meta_info object for unpacking.
+  Reflection R;
+  if (!DecodeReflection(Info, R, E, Args))
+    return false;
 
   switch (E->getTrait()) {
     case URT_ReflectIndex: {
@@ -5084,7 +5151,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
         MakeReflection(Info.Ctx, Owner, Result);
         return DerivedSuccess(Result, E);
       }
-      CCEDiag(E0, diag::note_reflection_not_declared) << 0;
+      CCEDiag(E->getArg(0), diag::note_reflection_not_declared) << 0;
       return false;
     }
 
@@ -5107,7 +5174,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
             return false;
           return DerivedSuccess(Val, E);
       }
-      CCEDiag(E0, diag::note_reflection_not_named) << 0;
+      CCEDiag(E->getArg(0), diag::note_reflection_not_named) << 0;
       return false;
     }
     case URT_ReflectType: {
@@ -5117,7 +5184,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
         MakeReflection(Info.Ctx, CanTy.getTypePtr(), Result);
         return DerivedSuccess(Result, E);
       }
-      CCEDiag(E0, diag::note_reflection_not_typed) << 0;
+      CCEDiag(E->getArg(0), diag::note_reflection_not_typed) << 0;
       return false;
     }
     case URT_ReflectValue:
@@ -5143,7 +5210,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
           return DerivedSuccess(Result, E);
         }
       }
-      CCEDiag(E0, diag::note_reflection_no_members) << 1;
+      CCEDiag(E->getArg(0), diag::note_reflection_no_members) << 1;
       return false;
     }
     case URT_ReflectNextMember: {
@@ -5153,17 +5220,16 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
         MakeReflection(Info.Ctx, Next, Result);
         return DerivedSuccess(Result, E);
       }
-      CCEDiag(E0, diag::note_reflection_not_declared) << 0;
+      CCEDiag(E->getArg(0), diag::note_reflection_not_declared) << 0;
       return false;
     }
     
     case URT_ReflectPrint:
-      llvm_unreachable("not implemented");
+      llvm_unreachable("Should not be here");
   }
 
   return Error(E);
 }
-
 
 }
 

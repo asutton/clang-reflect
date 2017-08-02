@@ -414,6 +414,8 @@ public:
   }
 
   Value *VisitCXXConstantExpr(CXXConstantExpr *E) {
+    if (E->getType()->isVoidType())
+      return nullptr;
     return CGF.EmitConstantValue(E->getValue(), E->getType());
   }
 
