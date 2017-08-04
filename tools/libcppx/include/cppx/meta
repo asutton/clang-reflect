@@ -52,6 +52,25 @@ enum construct_kind {
   array_type,
 };
 
+enum linkage_kind {
+  external_linkage,
+  internal_linkage,
+  no_linkage,
+};
+
+enum storage_kind {
+  automatic_storage,
+  thread_local_storage,
+  static_storage,
+};
+
+enum access_kind {
+  public_access,
+  protected_access,
+  private_access,
+  no_access,
+};
+
 // WARNING: Do not modify the layout of this class or its private constructors
 // unless you also plan to modify the compiler. In other words, do not touch.
 struct meta_data
@@ -291,6 +310,14 @@ struct namespace_info {
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
 
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : is_inline(n & 0x01) 
+    { }
+    
+    bool is_inline : 1;
+  };
+
   immediate namespace_info() = default;
   
   immediate namespace_info(meta_info mi)
@@ -316,6 +343,16 @@ struct namespace_info {
   immediate decl_range members() const noexcept {
     return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
   }
+
+  /// Returns the traits of the translation unit.
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  /// True if the namespace is inline,
+  immediate bool is_inline() const noexcept {
+    return traits().is_inline;
+  }
 };
 
 /// Compile-time information about a variable.
@@ -324,6 +361,24 @@ struct variable_info {
 
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : linkage(n & 0x03),
+        storage((n & 0x0c) >> 2),
+        is_static(n & 0x10),
+        is_extern(n & 0x20),
+        is_constexpr(n & 0x40),
+        is_inline(n & 0x80)
+    { }
+    
+    unsigned linkage : 2;
+    unsigned storage : 2;
+    bool is_static : 1;
+    bool is_extern : 1;
+    bool is_constexpr : 1;
+    bool is_inline : 1;
+  };
 
   immediate variable_info() = default;
   
@@ -350,6 +405,58 @@ struct variable_info {
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
   }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate linkage_kind linkage() const noexcept {
+    return linkage_kind(traits().linkage);
+  }
+
+  immediate bool has_linkage() const noexcept {
+    return linkage() != no_linkage;
+  }
+
+  immediate bool has_external_linkage() const noexcept {
+    return linkage() == external_linkage;
+  }
+
+  immediate bool has_internal_linkage() const noexcept {
+    return linkage() == internal_linkage;
+  }
+
+  immediate storage_kind storage_duration() const {
+    return storage_kind(traits().storage);
+  }
+
+  immediate bool has_static_storage() const noexcept {
+    return storage_duration() == static_storage;
+  }
+
+  immediate bool has_automatic_storage() const noexcept {
+    return storage_duration() == automatic_storage;
+  }
+
+  immediate bool has_thread_local_storage() const noexcept {
+    return storage_duration() == thread_local_storage;
+  }
+
+  immediate bool is_static() const noexcept {
+    return traits().is_static;
+  }
+
+  immediate bool is_extern() const noexcept {
+    return traits().is_extern;
+  }
+
+  immediate bool is_constexpr() const noexcept {
+    return traits().is_constexpr;
+  }
+
+  immediate bool is_inline() const noexcept {
+    return traits().is_inline;
+  }
 };
 
 /// Compile-time information about a function.
@@ -358,6 +465,26 @@ struct function_info {
 
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : linkage(n & 0x03), 
+        is_static(n & 0x04),
+        is_extern(n & 0x08),
+        is_constexpr(n & 0x10),
+        is_defined(n & 0x20),
+        is_inline(n & 0x40), 
+        is_deleted(n & 0x80)
+    { }
+    
+    unsigned linkage : 2;
+    bool is_static : 1;
+    bool is_extern : 1;
+    bool is_constexpr : 1;
+    bool is_defined : 1;
+    bool is_inline : 1;
+    bool is_deleted : 1;
+  };
 
   immediate function_info() = default;
 
@@ -370,19 +497,60 @@ struct function_info {
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
+  }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate linkage_kind linkage() const noexcept {
+    return linkage_kind(traits().linkage);
+  }
+
+  immediate bool has_linkage() const noexcept {
+    return linkage() != no_linkage;
+  }
+
+  immediate bool has_external_linkage() const noexcept {
+    return linkage() == external_linkage;
+  }
+
+  immediate bool has_internal_linkage() const noexcept {
+    return linkage() == internal_linkage;
+  }
+
+  immediate bool is_static() const noexcept {
+    return traits().is_static;
+  }
+
+  immediate bool is_extern() const noexcept {
+    return traits().is_extern;
+  }
+
+  immediate bool is_constexpr() const noexcept {
+    return traits().is_constexpr;
+  }
+
+  immediate bool is_defined() const noexcept {
+    return traits().is_defined;
+  }
+
+  immediate bool is_inline() const noexcept {
+    return traits().is_inline;
+  }
+
+  immediate bool is_deleted() const noexcept {
+    return traits().is_deleted;
   }
 };
 
@@ -424,8 +592,28 @@ struct parameter_info {
 struct class_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  /// FIXME: Add all computed traits.
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : linkage(n & 0x03),
+        access((n & 0x0c) >> 2),
+        is_complete(n & 0x10),
+        is_polymorphic(n & 0x020),
+        is_abstract(n & 0x40),
+        is_final(n & 0x80),
+        is_empty(n & 0x0100)
+    { }
+    
+    unsigned linkage : 2;
+    unsigned access : 2;
+    bool is_complete : 1;
+    bool is_polymorphic : 1;
+    bool is_abstract : 1;
+    bool is_final : 1;
+    bool is_empty : 1;
+  };
 
   immediate class_info() = default;
   
@@ -433,12 +621,10 @@ struct class_info {
     : data(mi.is_class() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
@@ -452,7 +638,69 @@ struct class_info {
   immediate decl_range members() const noexcept {
     return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
   }
+  
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate linkage_kind linkage() const noexcept {
+    return linkage_kind(traits().linkage);
+  }
+
+  immediate bool has_linkage() const noexcept {
+    return linkage() != no_linkage;
+  }
+
+  immediate bool has_external_linkage() const noexcept {
+    return linkage() == external_linkage;
+  }
+
+  immediate bool has_internal_linkage() const noexcept {
+    return linkage() == internal_linkage;
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  };
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
+  }
+
+  /// True if the class is complete.
+  immediate bool is_complete() const noexcept {
+    return traits().is_complete;
+  }
+
+  /// True if the class is polymorphic.
+  immediate bool is_polymorphic() const noexcept {
+    return traits().is_polymorphic;
+  }
+
+  /// True if the class is abstract.
+  immediate bool is_abstract() const noexcept {
+    return traits().is_abstract;
+  }
+
+  /// True if the class is final.
+  immediate bool is_final() const noexcept {
+    return traits().is_final;
+  }
+
+  /// True if the class is empty.
+  immediate bool is_empty() const noexcept {
+    return traits().is_empty;
+  }
 };
+
 
 /// Compile-time information about a union.
 struct union_info {
@@ -460,6 +708,19 @@ struct union_info {
 
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  // FIXME: Add other computed properties.
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : linkage(n & 0x03),
+        access((n & 0x0c) >> 2),
+        is_complete(n & 0x10)
+    { }
+    
+    unsigned linkage : 2;
+    unsigned access : 2;
+    bool is_complete : 1;
+  };
 
   immediate union_info() = default;
   
@@ -486,6 +747,46 @@ struct union_info {
   immediate decl_range members() const noexcept {
     return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
   }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate linkage_kind linkage() const noexcept {
+    return linkage_kind(traits().linkage);
+  }
+
+  immediate bool has_linkage() const noexcept {
+    return linkage() != no_linkage;
+  }
+
+  immediate bool has_external_linkage() const noexcept {
+    return linkage() == external_linkage;
+  }
+
+  immediate bool has_internal_linkage() const noexcept {
+    return linkage() == internal_linkage;
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  };
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
+  }
+
+  immediate bool is_complete() const noexcept {
+    return traits().is_complete;
+  }
 };
 
 /// Compile-time information about a member variable.
@@ -494,6 +795,24 @@ struct member_variable_info {
 
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : storage(n & 0x03), 
+        access((n & 0x0c) >> 2),
+        is_static(n & 0x10),
+        is_mutable(n & 0x20),
+        is_constexpr(n & 0x40),
+        is_inline(n & 0x80)
+    { }
+    
+    unsigned storage : 2;
+    unsigned access : 2;
+    bool is_static : 1;
+    bool is_mutable : 1;
+    bool is_constexpr : 1;
+    bool is_inline : 1;
+  };
 
   immediate member_variable_info() = default;
 
@@ -520,6 +839,58 @@ struct member_variable_info {
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
   }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate storage_kind storage_duration() const noexcept {
+    return storage_kind(traits().storage);
+  };
+
+  immediate bool has_static_storage() const noexcept {
+    return storage_duration() == static_storage;
+  }
+
+  immediate bool has_automatic_storage() const noexcept {
+    return storage_duration() == automatic_storage;
+  }
+
+  immediate bool has_thread_local_storage() const noexcept {
+    return storage_duration() == thread_local_storage;
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  };
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
+  }
+
+  immediate bool is_static() const noexcept {
+    return traits().is_static;
+  }
+
+  immediate bool is_mutable() const noexcept {
+    return traits().is_mutable;
+  }
+
+  immediate bool is_constexpr() const noexcept {
+    return traits().is_constexpr;
+  }
+
+  immediate bool is_inline() const noexcept {
+    return traits().is_inline;
+  }
 };
 
 /// Compile-time information about a member function.
@@ -528,6 +899,32 @@ struct member_function_info {
 
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : access(n & 0x3),
+        is_static(n & 0x04),
+        is_constexpr(n & 0x08),
+        is_virtual(n & 0x10),
+        is_pure(n & 0x20),
+        is_override(n & 0x40),
+        is_final(n & 0x80),
+        is_defined(n & 0x0100),
+        is_deleted(n & 0x0200),
+        is_inline(n & 0x0400)
+    { }
+
+    unsigned access : 2;
+    bool is_static : 1;
+    bool is_constexpr : 1;
+    bool is_virtual : 1;
+    bool is_pure : 1;
+    bool is_override : 1;
+    bool is_final : 1;
+    bool is_defined : 1;
+    bool is_deleted : 1;
+    bool is_inline : 1;
+  };
 
   immediate member_function_info() = default;
 
@@ -545,14 +942,68 @@ struct member_function_info {
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
+  }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  };
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
+  }
+
+  immediate bool is_static() const noexcept {
+    return traits().is_static;
+  }
+
+  immediate bool is_constexpr() const {
+    return traits().is_constexpr;
+  }
+
+  immediate bool is_virtual() const {
+    return traits().is_virtual;
+  }
+
+  immediate bool is_pure_virtual() const {
+    return traits().is_pure;
+  }
+
+  immediate bool is_override() const {
+    return traits().is_override;
+  }
+
+  immediate bool is_final() const {
+    return traits().is_final;
+  }
+
+  immediate bool is_defined() const {
+    return traits().is_defined;
+  }
+
+  immediate bool is_deleted() const {
+    return traits().is_deleted;
+  }
+
+  immediate bool is_inline() const {
+    return traits().is_inline;
   }
 };
 
@@ -562,6 +1013,26 @@ struct constructor_info {
 
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : access(n & 0x03),
+        is_explicit(n & 0x40),
+        is_constexpr(n & 0x80),
+        is_defined(n & 0x0100),
+        is_deleted(n & 0x0200),
+        is_defaulted(n & 0x0400),
+        is_inline(n & 0x0800)
+    { }
+
+    unsigned access : 2;
+    bool is_explicit : 1;
+    bool is_constexpr : 1;
+    bool is_defined : 1;
+    bool is_deleted : 1;
+    bool is_defaulted : 1;
+    bool is_inline : 1;
+  };
 
   immediate constructor_info() = default;
 
@@ -588,7 +1059,50 @@ struct constructor_info {
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
   }
-};
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  };
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
+  }
+
+  immediate bool is_explicit() const {
+    return traits().is_explicit;
+  }
+
+  immediate bool is_constexpr() const {
+    return traits().is_constexpr;
+  }
+
+  immediate bool is_defined() const {
+    return traits().is_defined;
+  }
+
+  immediate bool is_deleted() const {
+    return traits().is_deleted;
+  }
+
+  immediate bool is_defaulted() const {
+    return traits().is_defaulted;
+  }
+
+  immediate bool is_inline() const {
+    return traits().is_inline;
+  }};
 
 /// Compile-time information about a destructor.
 struct destructor_info {
@@ -597,30 +1111,102 @@ struct destructor_info {
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
 
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : access(n & 0x03), 
+        is_virtual(n & 0x10),
+        is_pure(n & 0x20),
+        is_override(n & 0x40),
+        is_final(n & 0x80),
+        is_defined(n & 0x0200),
+        is_deleted(n & 0x0400),
+        is_defaulted(n & 0x0400),
+        is_inline(n & 0x0800)
+    { }
+
+    unsigned access : 2;
+    bool is_virtual : 1;
+    bool is_pure : 1;
+    bool is_override : 1;
+    bool is_final : 1;
+    bool is_defined : 1;
+    bool is_deleted : 1;
+    bool is_defaulted : 1;
+    bool is_inline : 1;
+  };
+
   immediate destructor_info() = default;
 
   immediate destructor_info(meta_info mi)
     : data(mi.is_destructor() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
+  }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  };
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
+  }
+
+  immediate bool is_virtual() const {
+    return traits().is_virtual;
+  }
+
+  immediate bool is_pure_virtual() const {
+    return traits().is_pure;
+  }
+
+  immediate bool is_override() const {
+    return traits().is_override;
+  }
+
+  immediate bool is_final() const {
+    return traits().is_final;
+  }
+
+  immediate bool is_defined() const {
+    return traits().is_defined;
+  }
+
+  immediate bool is_deleted() const {
+    return traits().is_deleted;
+  }
+
+  immediate bool is_defaulted() const {
+    return traits().is_deleted;
+  }
+
+  immediate bool is_inline() const {
+    return traits().is_inline;
   }
 };
 
@@ -628,8 +1214,33 @@ struct destructor_info {
 struct conversion_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : access(n & 0x03),
+        is_explicit(n & 0x08),
+        is_constexpr(n & 0x10),
+        is_virtual(n & 0x20),
+        is_pure(n & 0x40),
+        is_override(n & 0x80),
+        is_final(n & 0x0100),
+        is_defined(n & 0x0400),
+        is_deleted(n & 0x0800),
+        is_inline(n & 0x01000)
+    { }
+
+    unsigned access : 2;
+    bool is_explicit : 1;
+    bool is_constexpr : 1;
+    bool is_virtual : 1;
+    bool is_pure : 1;
+    bool is_override : 1;
+    bool is_final : 1;
+    bool is_defined : 1;
+    bool is_deleted : 1;
+    bool is_inline : 1;
+  };
 
   immediate conversion_info() = default;
 
@@ -637,33 +1248,45 @@ struct conversion_info {
     : data(mi.is_conversion() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
   }
 };
 
 /// Compile-time information about an enumeration.
+///
+/// \todo Add support for underlying type.
 struct enum_info {
   meta_data data;
 
   /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : linkage(n & 0x03),
+        access((n & 0x0c) >> 2),
+        is_complete(n & 0x10),
+        is_scoped(n & 0x20)
+    { }
+    
+    unsigned linkage : 2;
+    unsigned access : 2;
+    bool is_complete : 1;
+    bool is_scoped : 1;
+  };
 
   immediate enum_info() = default;
   
@@ -671,24 +1294,64 @@ struct enum_info {
     : data(mi.is_enum() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the nested members of the entity.
   immediate decl_range members() const noexcept {
     return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate linkage_kind linkage() const noexcept {
+    return linkage_kind(traits().linkage);
+  }
+
+  immediate bool has_linkage() const noexcept {
+    return linkage() != no_linkage;
+  }
+
+  immediate bool has_external_linkage() const noexcept {
+    return linkage() == external_linkage;
+  }
+
+  immediate bool has_internal_linkage() const noexcept {
+    return linkage() == internal_linkage;
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  };
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
+  }
+
+  immediate bool is_complete() const noexcept {
+    return traits().is_complete;
+  }
+
+  immediate bool is_scoped() const noexcept {
+    return traits().is_scoped;
   }
 };
 
@@ -696,8 +1359,17 @@ struct enum_info {
 struct enumerator_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : linkage(n & 0x03),
+        access((n & 0x0c) >> 2)
+    { }
+    
+    unsigned linkage : 2;
+    unsigned access : 2;
+  };
 
   immediate enumerator_info() = default;
 
@@ -705,24 +1377,56 @@ struct enumerator_info {
     : data(mi.is_enumerator() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
+  }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate linkage_kind linkage() const noexcept {
+    return linkage_kind(traits().linkage);
+  }
+
+  immediate bool has_linkage() const noexcept {
+    return linkage() != no_linkage;
+  }
+
+  immediate bool has_external_linkage() const noexcept {
+    return linkage() == external_linkage;
+  }
+
+  immediate bool has_internal_linkage() const noexcept {
+    return linkage() == internal_linkage;
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  };
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
   }
 };
 
@@ -730,8 +1434,15 @@ struct enumerator_info {
 struct access_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
   static constexpr bool is_reflection_type = true;
+
+  struct traits_type {
+    immediate explicit traits_type(unsigned n) 
+      : access(n & 0x03)
+    { }
+    
+    unsigned access : 2;
+  };
 
   immediate access_info() = default;
 
@@ -739,14 +1450,32 @@ struct access_info {
     : data(mi.is_access_specifier() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
+  }
+
+  immediate traits_type traits() const noexcept {
+    return traits_type(__reflect_traits(data));
+  }
+
+  immediate access_kind access() const noexcept {
+    return access_kind(traits().access);
+  }
+
+  immediate bool is_public() const noexcept {
+    return access() == public_access;
+  }
+
+  immediate bool is_private() const noexcept {
+    return access() == private_access;
+  }
+
+  immediate bool is_protected() const noexcept {
+    return access() == protected_access;
   }
 };
 

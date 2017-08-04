@@ -4936,8 +4936,12 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
       return CK_TranslationUnit;
     case Decl::Namespace:
       return CK_NamespaceDecl;
-    case Decl::Var:
-      return CK_VariableDecl;
+    case Decl::Var: {
+      if (D->getDeclContext()->isRecord())
+        return CK_MemberVariableDecl;
+      else
+        return CK_VariableDecl;
+    }
     case Decl::Field:
       return CK_MemberVariableDecl;
     case Decl::Function:
@@ -5051,6 +5055,188 @@ static bool DecodeReflection(EvalInfo &Info, Reflection &R,
     return false;
   }
   return true;
+}
+
+enum LinkageTrait {
+  LT_External,
+  LT_Internal,
+  LT_None,
+};
+
+static unsigned getLinkage(NamedDecl *D) {
+  switch (D->getFormalLinkage()) {
+  case NoLinkage: 
+    return LT_None;
+  case ExternalLinkage: 
+    return LT_External;
+  case InternalLinkage: 
+    return LT_Internal;
+  default:
+    llvm_unreachable("Unexpected linkage value");
+  }
+}
+
+enum StorageTrait {
+  ST_Automatic,
+  ST_Thread,
+  ST_Static,
+};
+
+static unsigned getStorageDuration(VarDecl *D) {
+  switch (D->getStorageDuration()) {
+  case SD_Automatic: 
+    return ST_Automatic;
+  case SD_Thread:
+    return ST_Thread;
+  case SD_Static: 
+    return ST_Static;
+  default:
+    llvm_unreachable("Unexpected storage duration");
+  }
+}
+
+static unsigned getAccess(Decl *D) {
+  return D->getAccess();
+}
+
+static unsigned GetTraits(EvalInfo &Info, Decl *D) {
+    switch (D->getKind()) {
+    default:
+      return 0;
+    case Decl::Namespace: {
+      NamespaceDecl *NS = cast<NamespaceDecl>(D);
+      return NS->isInline();
+    }
+    case Decl::Var: {
+      VarDecl *Var = cast<VarDecl>(D);
+      if (Var->getDeclContext()->isRecord())
+        return getStorageDuration(Var) |
+               (getAccess(Var) << 2) |
+               (true << 4) |
+               (false << 5) |
+               (Var->isConstexpr() << 6) |
+               (Var->isInline() << 7);
+      else
+        return getLinkage(Var) | 
+               (getStorageDuration(Var) << 2) |
+               ((Var->getStorageClass() == SC_Static) << 4) |
+               ((Var->getStorageClass() == SC_Extern) << 5) |
+               (Var->isConstexpr() << 6) |
+               (Var->isInline() << 7);
+    }
+    case Decl::Function: {
+      FunctionDecl *Fn = cast<FunctionDecl>(D);
+      return getLinkage(Fn) |
+             ((Fn->getStorageClass() == SC_Static) << 2) |
+             ((Fn->getStorageClass() == SC_Extern) << 3) |
+             (Fn->isConstexpr() << 4) |
+             (Fn->isDefined() << 5) |
+             (Fn->isInlined() << 6) |
+             (Fn->isDeleted() << 7);
+
+    }
+    case Decl::CXXRecord: {
+      CXXRecordDecl *Class = cast<CXXRecordDecl>(D);
+      bool IsComplete = Class->getCanonicalDecl()->isCompleteDefinition();
+      unsigned Traits = getLinkage(Class) | 
+                        (getAccess(Class) << 2) | 
+                        (IsComplete << 4);
+      if (!IsComplete)
+        return Traits;
+      if (!Class->isUnion())
+        return Traits |
+               (Class->isPolymorphic() << 5) | 
+               (Class->isAbstract() << 6) | 
+               (Class->hasAttr<FinalAttr>() << 7) | 
+               (Class->isEmpty() << 8);
+      else
+        return Traits;
+    }
+    case Decl::Field: {
+      // Note that all of the other properties of apply only to static
+      // member variables.
+      FieldDecl *Field = cast<FieldDecl>(D);
+      return (getAccess(Field) << 2) | (Field->isMutable() << 5);
+    }
+    case Decl::CXXMethod: {
+      CXXMethodDecl *Method = cast<CXXMethodDecl>(D);
+      return getAccess(Method) |
+             Method->isStatic() << 2 |
+             Method->isConstexpr() << 3 |
+             Method->isVirtual() << 4 |
+             Method->isPure() << 5 |
+             Method->hasAttr<OverrideAttr>() << 6 |
+             Method->hasAttr<FinalAttr>() << 7 |
+             Method->isDefined() << 8 |
+             Method->isDeleted() << 9 |
+             Method->isInlined() << 10;
+    }
+    case Decl::CXXConstructor: {
+      CXXConstructorDecl *Ctor = cast<CXXConstructorDecl>(D);
+      return getAccess(Ctor) |
+             Ctor->isExplicit() << 2 |
+             Ctor->isConstexpr() << 3 |
+             Ctor->isDefined() << 4 |
+             Ctor->isDeleted() << 5 |
+             Ctor->isDefaulted() << 6 |
+             Ctor->isInlined() << 7;
+    }
+    case Decl::CXXDestructor: {
+      CXXDestructorDecl *Dtor = cast<CXXDestructorDecl>(D);
+      return getAccess(Dtor) |
+             Dtor->isVirtual() << 3 |
+             Dtor->isPure() << 4 |
+             Dtor->hasAttr<OverrideAttr>() << 5 |
+             Dtor->hasAttr<FinalAttr>() << 6 |
+             Dtor->isDefined() << 7 |
+             Dtor->isDeleted() << 8 |
+             Dtor->isDefaulted() << 9 |
+             Dtor->isInlined() << 10;
+    }
+    case Decl::CXXConversion: {
+      CXXConversionDecl *Conv = cast<CXXConversionDecl>(D);
+      return getAccess(Conv) |
+             Conv->isExplicit() << 2 |
+             Conv->isConstexpr() << 3 |
+             Conv->isVirtual() << 4 |
+             Conv->isPure() << 5 |
+             Conv->hasAttr<OverrideAttr>() << 6 |
+             Conv->hasAttr<FinalAttr>() << 7 |
+             Conv->isDefined() << 8 |
+             Conv->isDeleted() << 9 |
+             Conv->isInlined() << 10;
+    }
+    case Decl::Enum: {
+      EnumDecl *Enum = cast<EnumDecl>(D);
+      return getLinkage(Enum) | 
+             getAccess(Enum) << 2 | 
+             Enum->isComplete() << 4 | 
+             Enum->isScoped() << 5;
+      return 0;
+    }
+    case Decl::EnumConstant: {
+      EnumConstantDecl *Const = cast<EnumConstantDecl>(D);
+      return getLinkage(Const) | getAccess(Const) << 2;
+    }
+    case Decl::AccessSpec: {
+      AccessSpecDecl *Spec = cast<AccessSpecDecl>(D);
+      return getAccess(Spec);
+    }
+  }
+  llvm_unreachable("Should not be here");
+}
+
+static bool MakeTraits(EvalInfo &Info, Reflection &R, 
+                       const CXXReflectionTraitExpr *E, APSInt &Result) {
+  if (Decl *D = R.getAsDeclaration()) {
+    Result = Info.Ctx.MakeIntValue(GetTraits(Info, D), Info.Ctx.UnsignedIntTy);
+    return true;
+  } else if (Type *T = R.getAsType()) {
+    // T->dump();
+    // Result = APValue(Info.Ctx.MakeIntValue(0, Info.Ctx.UnsignedIntTy));
+    // return true;
+  }
+  llvm_unreachable("unhandled reflected construct");
 }
 
 // Returns true if T is 'const char*'.
@@ -5189,8 +5375,12 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
     }
     case URT_ReflectValue:
       llvm_unreachable("not implemented");
-    case URT_ReflectTraits:
-      llvm_unreachable("not implemented");
+    case URT_ReflectTraits: {
+      APSInt Result;
+      if (!MakeTraits(Info, R, E, Result))
+        return false;
+      return DerivedSuccess(APValue(Result), E);
+    }
     case URT_ReflectFirstMember: {
       if (Decl *D = R.getAsDeclaration()) {
         DeclContext *DC;
