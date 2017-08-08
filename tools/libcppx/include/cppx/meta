@@ -226,10 +226,6 @@ struct meta_info {
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
-
-  immediate int print() const noexcept {
-    return __reflect_print(data);
-  }
 };
 
 immediate bool operator==(meta_info a, meta_info b) noexcept {
@@ -371,6 +367,77 @@ struct specific_member_range
   iterator first;
   iterator limit;
 };
+
+/// Iterates over members of a particular kind.
+template<typename Pred>
+struct filter_member_iterator
+{
+  using value_type = meta_info;
+  using reference = meta_info;
+  using pointer = void;
+  using difference_type = std::ptrdiff_t;
+  using iterator_category = std::forward_iterator_tag;
+
+  member_iterator iter; // The current iterator.
+  Pred pred; // The predicate
+
+  immediate filter_member_iterator(Pred p = {})
+    : iter(), pred(p)
+  { }
+  immediate filter_member_iterator(meta_info mi, Pred p = {})
+    : iter(mi), pred(p)
+  { advance(); }
+
+  immediate meta_info operator*() const noexcept {
+    return *iter;
+  }
+
+  immediate filter_member_iterator& operator++() noexcept {
+    ++iter;
+    advance();
+    return *this;
+  }
+  immediate filter_member_iterator operator++(int) noexcept {
+    filter_member_iterator tmp = *this;
+    ++iter;
+    return tmp;
+  }
+
+  friend immediate bool 
+  operator==(filter_member_iterator a, filter_member_iterator b) noexcept {
+    return a.iter == b.iter;
+  }
+  friend immediate bool 
+  operator!=(filter_member_iterator a, filter_member_iterator b) noexcept {
+    return a.iter != b.iter;
+  }
+
+  immediate void advance() {
+    while (*iter && !pred(*iter))
+      ++iter;
+  }
+};
+
+template<typename Pred>
+struct filter_member_range
+{
+  using iterator = filter_member_iterator<Pred>;
+
+  immediate filter_member_range(meta_info mi, Pred p = {})
+    : first(mi, p), limit(p)
+  { }
+
+  immediate iterator begin() const noexcept { 
+    return first; 
+  }
+  immediate iterator end() const noexcept { 
+    return limit; 
+  }
+
+  iterator first;
+  iterator limit;
+};
+
 
 
 // -------------------------------------------------------------------------- //
@@ -693,17 +760,55 @@ struct constructor_info;
 struct destructor_info;
 struct conversion_info;
 
-using member_variable_iterator = specific_member_iterator<member_variable_info>;
-using member_variable_range = specific_member_range<member_variable_info>;
+struct is_member_variable_p
+{
+  immediate bool operator()(meta_info mi) const noexcept;
+};
 
-using member_function_iterator = specific_member_iterator<member_function_info>;
-using member_function_range = specific_member_range<member_function_info>;
+struct is_instance_variable_p
+{
+  immediate bool operator()(meta_info mi) const noexcept;
+};
 
-using constructor_iterator = specific_member_iterator<constructor_info>;
-using constructor_range = specific_member_range<constructor_info>;
+struct is_class_variable_p
+{
+  immediate bool operator()(meta_info mi) const noexcept;
+};
 
-using destructor_iterator = specific_member_iterator<destructor_info>;
-using destructor_range = specific_member_range<destructor_info>;
+struct is_member_function_p
+{
+  immediate bool operator()(meta_info mi) const noexcept;
+};
+
+struct is_instance_function_p
+{
+  immediate bool operator()(meta_info mi) const noexcept;
+};
+
+struct is_class_function_p
+{
+  immediate bool operator()(meta_info mi) const noexcept;
+};
+
+struct is_constructor_p
+{
+  immediate bool operator()(meta_info mi) const noexcept;
+};
+
+struct is_destructor_p
+{
+  immediate bool operator()(meta_info mi) const noexcept;
+};
+
+using memvar_range = filter_member_range<is_member_variable_p>;
+using instance_memvar_range = filter_member_range<is_instance_variable_p>;
+using class_memvar_range = filter_member_range<is_class_variable_p>;
+
+using memfun_range = filter_member_range<is_member_function_p>;
+using instance_memfun_range = filter_member_range<is_instance_function_p>;
+using constructor_range = filter_member_range<is_constructor_p>;
+using destructor_range = filter_member_range<is_destructor_p>;
+using class_memfun_range = filter_member_range<is_class_function_p>;
 
 
 /// Compile-time information about a class.
@@ -759,10 +864,15 @@ struct class_info {
     return {*this};
   }
 
-  immediate member_variable_range all_member_variables() const noexcept;
-  immediate member_function_range all_member_functions() const noexcept;
+  immediate memvar_range all_member_variables() const noexcept;
+  immediate instance_memvar_range member_variables() const noexcept;
+  immediate class_memvar_range static_member_variables() const noexcept;
+  
+  immediate memfun_range all_member_functions() const noexcept;
+  immediate instance_memfun_range member_functions() const noexcept;
   immediate constructor_range constructors() const noexcept;
   immediate destructor_range destructors() const noexcept;
+  immediate class_memfun_range static_member_functions() const noexcept;
 
   immediate traits_type traits() const noexcept {
     return traits_type(__reflect_traits(data));
@@ -1901,11 +2011,62 @@ struct construct_type<array_type> { using type = array_type_info; };
 // -------------------------------------------------------------------------- //
 // Definitions
 
-immediate member_variable_range class_info::all_member_variables() const noexcept {
+immediate bool is_member_variable_p::operator()(meta_info mi) const noexcept {
+  return mi.is_member_variable();
+}
+
+immediate bool is_instance_variable_p::operator()(meta_info mi) const noexcept {
+  if (member_variable_info var = mi)
+    return !var.is_static();
+  return false;
+}
+
+immediate bool is_class_variable_p::operator()(meta_info mi) const noexcept {
+  if (member_variable_info var = mi)
+    return var.is_static();
+  return false;
+}
+
+immediate bool is_member_function_p::operator()(meta_info mi) const noexcept {
+  return mi.is_member_function() || 
+         mi.is_constructor() || 
+         mi.is_destructor() ||
+         mi.is_conversion();
+}
+
+immediate bool is_instance_function_p::operator()(meta_info mi) const noexcept {
+  if (member_function_info fn = mi)
+    return !fn.is_static();
+  return mi.is_constructor() || mi.is_destructor() || mi.is_conversion();
+}
+
+immediate bool is_constructor_p::operator()(meta_info mi) const noexcept {
+  return mi.is_constructor();
+}
+
+immediate bool is_destructor_p::operator()(meta_info mi) const noexcept {
+  return mi.is_destructor();
+}
+
+immediate bool is_class_function_p::operator()(meta_info mi) const noexcept {
+  if (member_function_info fn = mi)
+    return fn.is_static();
+  return false;
+}
+
+immediate memvar_range class_info::all_member_variables() const noexcept {
   return {*this};
 }
 
-immediate member_function_range class_info::all_member_functions() const noexcept {
+immediate instance_memvar_range class_info::member_variables() const noexcept {
+  return {*this};
+}
+
+immediate class_memvar_range class_info::static_member_variables() const noexcept {
+  return {*this};
+}
+
+immediate memfun_range class_info::all_member_functions() const noexcept {
   return {*this};
 }
 
@@ -1914,6 +2075,10 @@ immediate constructor_range class_info::constructors() const noexcept {
 }
 
 immediate destructor_range class_info::destructors() const noexcept {
+  return {*this};
+}
+
+immediate class_memfun_range class_info::static_member_functions() const noexcept {
   return {*this};
 }
 
@@ -1938,7 +2103,6 @@ struct compiler_type {
   print(T info) noexcept {
     (void)__reflect_print(info.data);
   }
-
 } compiler;
 
 
