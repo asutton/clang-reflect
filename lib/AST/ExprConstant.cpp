@@ -4901,7 +4901,9 @@ public:
 
 // TODO: Keep this in sync with cppx::meta::construct_kind
 enum ConstructKind {
-  CK_Null,
+  CK_Any = -1,
+
+  CK_Null = 0,
 
   CK_TranslationUnit, 
   CK_NamespaceDecl,
@@ -5042,6 +5044,7 @@ static void MakeReflection(ASTContext &Ctx, const Type *T, APValue &Result) {
   }
 }
 
+// Populates R with the reflected construct. Note that R may be null.
 static bool DecodeReflection(EvalInfo &Info, Reflection &R, 
                              const CXXReflectionTraitExpr *E,
                              SmallVectorImpl<APValue> &Args) {
@@ -5050,6 +5053,8 @@ static bool DecodeReflection(EvalInfo &Info, Reflection &R,
   // Decode the reflected handle.
   APValue &HandleField = Args[0].getStructField(1);
   std::uintptr_t Handle = HandleField.getInt().getExtValue();
+  if (!Handle)
+    return true;
   if (!Info.Ctx.GetReflection(Handle, R)) {
     Info.CCEDiag(E->getArg(0), diag::note_reflection_not_known);
     return false;
@@ -5277,7 +5282,9 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
     if (!DecodeReflection(Info, R, E, Args))
       return false;
 
-    if (Decl *D = R.getAsDeclaration()) {
+    if (R.isNull()) {
+      llvm::errs() << "null construct\n";
+    } else if (Decl *D = R.getAsDeclaration()) {
       D->print(llvm::errs());
       llvm::errs() << '\n';
     } else if (Type *T = R.getAsType()) {
@@ -5299,7 +5306,6 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
 template<typename Derived>
 bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
                                               const CXXReflectionTraitExpr *E) {
-  // Evaluate the operands.
   SmallVector<APValue, 2> Args(E->getNumArgs());
   for (std::size_t I = 0; I < Args.size(); ++I) {
     const Expr *Arg = E->getArg(I);
@@ -5323,6 +5329,12 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
   Reflection R;
   if (!DecodeReflection(Info, R, E, Args))
     return false;
+
+  // Reject null operands here.
+  if (R.isNull()) {
+    CCEDiag(E->getArg(0), diag::note_empty_reflection) << 0;
+    return false;  
+  }
 
   switch (E->getTrait()) {
     case URT_ReflectIndex: {

@@ -24,7 +24,9 @@ inline namespace v1
 
 // TODO: Keep this in sync with the compiler.
 enum construct_kind {
-  null_construct,
+  any_construct = -1, // The static index of meta_info.
+
+  null_construct = 0, // Never a static index.
 
   translation_unit,
   namespace_decl,
@@ -52,6 +54,13 @@ enum construct_kind {
   array_type,
 };
 
+/// The meta_info alternative corresponding to the kind. Defined below.
+template<construct_kind K>
+struct construct_type;
+
+template<construct_kind K>
+using construct_type_t = typename construct_type<K>::type;
+
 enum linkage_kind {
   external_linkage,
   internal_linkage,
@@ -70,6 +79,7 @@ enum access_kind {
   private_access,
   no_access,
 };
+
 
 // WARNING: Do not modify the layout of this class or its private constructors
 // unless you also plan to modify the compiler. In other words, do not touch.
@@ -99,7 +109,6 @@ immediate bool operator!=(meta_data a, meta_data b) noexcept {
 }
 
 
-
 // -------------------------------------------------------------------------- //
 // Meta info variant
 
@@ -120,13 +129,10 @@ struct meta_info {
 
   //public:
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = any_construct;
 
-  /// Default construct a null reflection.
   immediate meta_info() = default;
 
-  /// Returns the construct discriminator.
   immediate construct_kind index() const noexcept { 
     return __reflect_index(data); 
   }
@@ -229,7 +235,7 @@ immediate bool operator!=(meta_info a, meta_info b) noexcept {
 // -------------------------------------------------------------------------- //
 // Iterators
 
-struct decl_iterator
+struct member_iterator
 {
   using value_type = meta_info;
   using reference = meta_info;
@@ -239,42 +245,115 @@ struct decl_iterator
 
   meta_info curr; // The current declaration.
 
-  immediate decl_iterator() = default;
+  immediate member_iterator() = default;
 
-  immediate decl_iterator(meta_info mi)
-    : curr(mi)
+  immediate member_iterator(meta_info mi)
+    : curr(__reflect_first_member(mi.data))
   { }
 
   immediate meta_info operator*() const noexcept {
     return curr;
   }
 
-  immediate decl_iterator& operator++() noexcept {
+  immediate member_iterator& operator++() noexcept {
     curr = __reflect_next_member(curr.data);
     return *this;
   }
-  immediate decl_iterator operator++(int) noexcept {
-    decl_iterator tmp = *this;
+  immediate member_iterator operator++(int) noexcept {
+    member_iterator tmp = *this;
     curr = __reflect_next_member(curr.data);
     return tmp;
   }
 
-  friend immediate bool operator==(decl_iterator a, decl_iterator b) noexcept {
+  friend immediate bool operator==(member_iterator a, member_iterator b) noexcept {
     return a.curr == b.curr;
   }
-  friend immediate bool operator!=(decl_iterator a, decl_iterator b) noexcept {
+  friend immediate bool operator!=(member_iterator a, member_iterator b) noexcept {
     return a.curr != b.curr;
   }
 };
 
-struct decl_range
+struct member_range
 {
-  immediate decl_iterator begin() { return first; }
-  immediate decl_iterator end() { return limit; }
+  immediate member_range(meta_info mi)
+    : first(mi), limit()
+  { }
 
-  decl_iterator first;
-  decl_iterator limit;
+  immediate member_iterator begin() { return first; }
+  immediate member_iterator end() { return limit; }
+
+  member_iterator first;
+  member_iterator limit;
 };
+
+/// Iterates over members of a particular kind.
+template<typename Info>
+struct specific_member_iterator
+{
+  using value_type = meta_info;
+  using reference = meta_info;
+  using pointer = void;
+  using difference_type = std::ptrdiff_t;
+  using iterator_category = std::forward_iterator_tag;
+
+  member_iterator iter; // The current iterator.
+
+  immediate specific_member_iterator() = default;
+
+  immediate specific_member_iterator(meta_info mi)
+    : iter(__reflect_first_member(mi.data))
+  {
+    advance();
+  }
+
+  immediate meta_info operator*() const noexcept {
+    return *iter;
+  }
+
+  immediate specific_member_iterator& operator++() noexcept {
+    ++iter;
+    advance();
+    return *this;
+  }
+  immediate specific_member_iterator operator++(int) noexcept {
+    specific_member_iterator tmp = *this;
+    ++iter;
+    return tmp;
+  }
+
+  friend immediate bool 
+  operator==(specific_member_iterator a, specific_member_iterator b) noexcept {
+    return a.iter == b.iter;
+  }
+  friend immediate bool 
+  operator!=(specific_member_iterator a, specific_member_iterator b) noexcept {
+    return a.iter != b.iter;
+  }
+
+  void advance() {
+    if (Info::construct != any_construct) {
+      while (*iter && (*iter).index() != Info::construct)
+        ++iter;
+    }
+  }
+};
+
+template<typename Info>
+struct specific_member_range
+{
+  using iterator_type = specific_member_iterator<Info>;
+
+  specific_member_range(meta_info mi)
+    : first(mi), limit()
+  { }
+
+  immediate iterator_type begin() { return first; }
+  immediate iterator_type end() { return limit; }
+
+  iterator_type first;
+  iterator_type limit;
+};
+
 
 // -------------------------------------------------------------------------- //
 // Declarations
@@ -283,8 +362,7 @@ struct decl_range
 struct translation_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = translation_unit;
 
   immediate translation_info() = default;
   
@@ -292,14 +370,20 @@ struct translation_info {
     : data(mi.is_translation_unit() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
+  }
+
+  immediate member_range members() const noexcept {
+    return {*this};
   }
 };
 
@@ -307,8 +391,7 @@ struct translation_info {
 struct namespace_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = namespace_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -324,32 +407,30 @@ struct namespace_info {
     : data(mi.is_namespace() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the nested members of the entity.
-  immediate decl_range members() const noexcept {
-    return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  immediate member_range members() const noexcept {
+    return {*this};
   }
 
-  /// Returns the traits of the translation unit.
   immediate traits_type traits() const noexcept {
     return traits_type(__reflect_traits(data));
   }
 
-  /// True if the namespace is inline,
   immediate bool is_inline() const noexcept {
     return traits().is_inline;
   }
@@ -359,8 +440,7 @@ struct namespace_info {
 struct variable_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = variable_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -386,22 +466,22 @@ struct variable_info {
     : data(mi.is_variable() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
   }
@@ -463,8 +543,7 @@ struct variable_info {
 struct function_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = function_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -492,7 +571,10 @@ struct function_info {
     : data(mi.is_function() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -558,8 +640,7 @@ struct function_info {
 struct parameter_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = parameter_decl;
 
   immediate parameter_info() = default;
 
@@ -567,22 +648,22 @@ struct parameter_info {
     : data(mi.is_parameter() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
   }
@@ -592,7 +673,7 @@ struct parameter_info {
 struct class_info {
   meta_data data;
 
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = class_decl;
 
   /// FIXME: Add all computed traits.
   struct traits_type {
@@ -621,6 +702,10 @@ struct class_info {
     : data(mi.is_class() ? mi.data : mi.null)
   { }
 
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -629,16 +714,14 @@ struct class_info {
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the nested members of the entity.
-  immediate decl_range members() const noexcept {
-    return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  immediate member_range members() const noexcept {
+    return {*this};
   }
-  
+
   immediate traits_type traits() const noexcept {
     return traits_type(__reflect_traits(data));
   }
@@ -707,7 +790,7 @@ struct union_info {
   meta_data data;
 
   /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = union_decl;
 
   // FIXME: Add other computed properties.
   struct traits_type {
@@ -728,24 +811,24 @@ struct union_info {
     : data(mi.is_union() ? mi.data :  mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the nested members of the entity.
-  immediate decl_range members() const noexcept {
-    return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  immediate member_range members() const noexcept {
+    return {*this};
   }
 
   immediate traits_type traits() const noexcept {
@@ -793,8 +876,7 @@ struct union_info {
 struct member_variable_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = member_variable_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -820,22 +902,22 @@ struct member_variable_info {
     : data(mi.is_member_variable() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
   }
@@ -897,8 +979,7 @@ struct member_variable_info {
 struct member_function_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = member_function_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -932,12 +1013,14 @@ struct member_function_info {
     : data(mi.is_member_function() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
@@ -1011,8 +1094,7 @@ struct member_function_info {
 struct constructor_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = constructor_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -1040,22 +1122,22 @@ struct constructor_info {
     : data(mi.is_constructor() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 
-  /// Returns the type of the entity.
   immediate meta_info type() const noexcept {
     return __reflect_type(data);
   }
@@ -1108,8 +1190,7 @@ struct constructor_info {
 struct destructor_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = destructor_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -1140,6 +1221,10 @@ struct destructor_info {
   immediate destructor_info(meta_info mi)
     : data(mi.is_destructor() ? mi.data : mi.null)
   { }
+
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
 
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
@@ -1214,7 +1299,7 @@ struct destructor_info {
 struct conversion_info {
   meta_data data;
 
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = conversion_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -1252,6 +1337,10 @@ struct conversion_info {
     return has_value(); 
   }
 
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
@@ -1271,8 +1360,7 @@ struct conversion_info {
 struct enum_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = enum_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -1294,6 +1382,10 @@ struct enum_info {
     : data(mi.is_enum() ? mi.data : mi.null)
   { }
 
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1306,8 +1398,8 @@ struct enum_info {
     return __reflect_name(data);
   }
 
-  immediate decl_range members() const noexcept {
-    return {decl_iterator(__reflect_first_member(data)), decl_iterator()};
+  immediate member_range members() const noexcept {
+    return {*this};
   }
 
   immediate traits_type traits() const noexcept {
@@ -1359,7 +1451,7 @@ struct enum_info {
 struct enumerator_info {
   meta_data data;
 
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = enumerator_decl;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -1376,6 +1468,10 @@ struct enumerator_info {
   immediate enumerator_info(meta_info mi)
     : data(mi.is_enumerator() ? mi.data : mi.null)
   { }
+
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
 
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
@@ -1434,7 +1530,7 @@ struct enumerator_info {
 struct access_info {
   meta_data data;
 
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = access_spec;
 
   struct traits_type {
     immediate explicit traits_type(unsigned n) 
@@ -1449,6 +1545,10 @@ struct access_info {
   immediate access_info(meta_info mi)
     : data(mi.is_access_specifier() ? mi.data : mi.null)
   { }
+
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
 
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
@@ -1487,8 +1587,7 @@ struct access_info {
 struct void_type_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = void_type;
 
   immediate void_type_info() = default;
 
@@ -1496,17 +1595,18 @@ struct void_type_info {
     : data(mi.is_void_type() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
@@ -1516,8 +1616,7 @@ struct void_type_info {
 struct character_type_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = character_type;
 
   immediate character_type_info() = default;
 
@@ -1525,17 +1624,18 @@ struct character_type_info {
     : data(mi.is_character_type() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
@@ -1545,8 +1645,7 @@ struct character_type_info {
 struct integral_type_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = integral_type;
 
   immediate integral_type_info() = default;
 
@@ -1554,17 +1653,18 @@ struct integral_type_info {
     : data(mi.is_integral_type() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
@@ -1574,8 +1674,7 @@ struct integral_type_info {
 struct floating_point_type_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = floating_point_type;
 
   immediate floating_point_type_info() = default;
 
@@ -1583,17 +1682,18 @@ struct floating_point_type_info {
     : data(mi.is_floating_point_type() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
@@ -1603,8 +1703,7 @@ struct floating_point_type_info {
 struct reference_type_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = reference_type;
 
   immediate reference_type_info() = default;
 
@@ -1612,17 +1711,18 @@ struct reference_type_info {
     : data(mi.is_reference_type() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
@@ -1632,8 +1732,7 @@ struct reference_type_info {
 struct function_type_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = function_type;
 
   immediate function_type_info() = default;
 
@@ -1641,17 +1740,18 @@ struct function_type_info {
     : data(mi.is_function_type() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
@@ -1661,8 +1761,7 @@ struct function_type_info {
 struct pointer_type_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = pointer_type;
 
   immediate pointer_type_info() = default;
 
@@ -1670,17 +1769,18 @@ struct pointer_type_info {
     : data(mi.is_pointer_type() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
@@ -1690,8 +1790,7 @@ struct pointer_type_info {
 struct array_type_info {
   meta_data data;
 
-  /// Denotes that this is a reflection.
-  static constexpr bool is_reflection_type = true;
+  static constexpr construct_kind construct = array_type;
 
   immediate array_type_info() = default;
 
@@ -1699,21 +1798,67 @@ struct array_type_info {
     : data(mi.is_array_type() ? mi.data : mi.null)
   { }
 
-  /// Converts to true when the object has a value.
+  immediate operator meta_info() const noexcept {
+    return meta_info(data);
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
 
-  /// Returns true when the object is non-null.
   immediate bool has_value() const noexcept { 
     return !data.null(); 
   }
 
-  /// Returns the name of the entity.
   immediate const char* name() const noexcept {
     return __reflect_name(data);
   }
 };
+
+// -------------------------------------------------------------------------- //
+// Construct kind
+
+template<> 
+struct construct_type<translation_unit> { using type = translation_info; };
+template<> 
+struct construct_type<namespace_decl> { using type = namespace_info; };
+template<> 
+struct construct_type<variable_decl> { using type = variable_info; };
+template<> 
+struct construct_type<function_decl> { using type = function_info; };
+template<> 
+struct construct_type<parameter_decl> { using type = parameter_info; };
+template<> 
+struct construct_type<class_decl> { using type = class_info; };
+template<> 
+struct construct_type<union_decl> { using type = union_info; };
+template<> 
+struct construct_type<member_variable_decl> { using type = member_variable_info; };
+template<> 
+struct construct_type<member_function_decl> { using type = member_function_info; };
+template<> 
+struct construct_type<enum_decl> { using type = enum_info; };
+template<> 
+struct construct_type<enumerator_decl> { using type = enumerator_info; };
+template<> 
+struct construct_type<access_spec> { using type = access_info; };
+
+template<> 
+struct construct_type<void_type> { using type = void_type_info; };
+template<> 
+struct construct_type<character_type> { using type = character_type_info; };
+template<> 
+struct construct_type<integral_type> { using type = integral_type_info; };
+template<> 
+struct construct_type<floating_point_type> { using type = floating_point_type_info; };
+template<> 
+struct construct_type<reference_type> { using type = reference_type_info; };
+template<> 
+struct construct_type<function_type> { using type = function_type_info; };
+template<> 
+struct construct_type<pointer_type> { using type = pointer_type_info; };
+template<> 
+struct construct_type<array_type> { using type = array_type_info; };
 
 
 // -------------------------------------------------------------------------- //
@@ -1732,7 +1877,7 @@ struct compiler_type {
 
   // Specialization for reflected types.
   template<typename T>
-  static immediate std::enable_if_t<T::is_reflection_type, void>
+  static immediate std::enable_if_t<T::construct != 0, void>
   print(T info) noexcept {
     (void)__reflect_print(info.data);
   }

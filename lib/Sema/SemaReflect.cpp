@@ -91,6 +91,8 @@ QualType Sema::getMetaInfoType(SourceLocation Loc) {
     return Context.getRecordType(MetaInfoDecl);
 
   QualType MetaInfoTy = LookupMetaDecl(*this, "meta_info", Loc);
+  if (MetaInfoTy.isNull())
+    return QualType();
   MetaInfoDecl = MetaInfoTy->getAsCXXRecordDecl();
   return MetaInfoTy;
 }
@@ -98,6 +100,8 @@ QualType Sema::getMetaInfoType(SourceLocation Loc) {
 // TODO: Make this a member and cache the result. Just like above.
 static QualType getMetaDataType(Sema &SemaRef, SourceLocation Loc) {
   QualType MetaDataTy = LookupMetaDecl(SemaRef, "meta_data", Loc);
+  if (MetaDataTy.isNull())
+    return QualType();
   assert(MetaDataTy->isRecordType() && "Expected record type");
   return MetaDataTy;
 }
@@ -105,6 +109,8 @@ static QualType getMetaDataType(Sema &SemaRef, SourceLocation Loc) {
 // TODO: Make this a member and cache the result. Just like above.
 static QualType getConstructKindType(Sema &SemaRef, SourceLocation Loc) {
   QualType KindTy = LookupMetaDecl(SemaRef, "construct_kind", Loc);
+  if (KindTy.isNull())
+    return QualType();
   assert(KindTy->isEnumeralType() && "Expected enum type");
   return KindTy;
 }

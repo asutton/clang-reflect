@@ -13,7 +13,6 @@ immediate void print_members(class_info ci) {
   compiler.print("print members");
   compiler.print(ci);
   auto rng = ci.members();
-  compiler.print(4);
   compiler.print(std::distance(rng.begin(), rng.end()));
   for(meta_info m : ci.members())
     compiler.print(m);
