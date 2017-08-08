@@ -5045,18 +5045,30 @@ static void MakeReflection(ASTContext &Ctx, const Type *T, APValue &Result) {
 }
 
 // Populates R with the reflected construct. Note that R may be null.
-static bool DecodeReflection(EvalInfo &Info, Reflection &R, 
-                             const CXXReflectionTraitExpr *E,
-                             SmallVectorImpl<APValue> &Args) {
-  assert(Args[0].isStruct());
+static bool DecodeMetaData(EvalInfo &Info, Reflection &R, 
+                           const Expr *MetaDataExpr,
+                           const APValue& MetaDataVal) {
+
+  // Check that the expression has the right type.
+  //
+  // FIXME: It would be nice if we could handle both meta_data and any
+  // of the *_info classes.
+  QualType T = MetaDataExpr->getType();
+  CXXRecordDecl *Class = T->getAsCXXRecordDecl();
+  if (Class->getIdentifier() != &Info.Ctx.Idents.get("meta_data")) {
+    Info.CCEDiag(MetaDataExpr, diag::note_reflection_not_metadata) << T;
+  }
+
+
+  assert(MetaDataVal.isStruct());
 
   // Decode the reflected handle.
-  APValue &HandleField = Args[0].getStructField(1);
+  const APValue &HandleField = MetaDataVal.getStructField(1);
   std::uintptr_t Handle = HandleField.getInt().getExtValue();
   if (!Handle)
     return true;
   if (!Info.Ctx.GetReflection(Handle, R)) {
-    Info.CCEDiag(E->getArg(0), diag::note_reflection_not_known);
+    Info.CCEDiag(MetaDataExpr, diag::note_reflection_not_known);
     return false;
   }
   return true;
@@ -5244,13 +5256,15 @@ static bool MakeTraits(EvalInfo &Info, Reflection &R,
   llvm_unreachable("unhandled reflected construct");
 }
 
-// Returns true if T is 'const char*'.
-static bool isConstCharPtr(QualType T) {
-  if (const PointerType *P = T->getAs<PointerType>()) {
+// Returns true if T is 'const char*' or 'const char[N]'.
+static bool isStringLiteralType(QualType T) {
+  if (const PointerType *P = T->getAs<PointerType>())
     T = P->getPointeeType();
-    return T->isCharType() && T.isConstQualified();
-  }
-  return false;
+  else if (const ArrayType *A = T->getAsArrayTypeUnsafe())
+    T = A->getElementType();
+  else
+    return false;
+  return T->isCharType() && T.isConstQualified();
 }
 
 static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E, 
@@ -5260,8 +5274,7 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
   if (T->isIntegralType(Info.Ctx)) {
     llvm::errs() << Args[0].getInt().getExtValue() << '\n';
     return true;
-  } else if (isConstCharPtr(T)) {
-    // This should be a string literal.
+  } else if (isStringLiteralType(T)) {
     assert(Args[0].isLValue() && "Expected lvalue");
     APValue::LValueBase Base = Args[0].getLValueBase();
     assert(Base.is<const Expr *>() && "Expected a string literal initializer");
@@ -5276,10 +5289,8 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
     llvm::errs() << NonQuote << '\n';
     return true;
   } else if (T->isRecordType()) {
-    // FIXME: The predicate is quite a bit more complex. The argument could
-    // be any of the reflection classes in cppx::meta (but not meta_data).
     Reflection R;
-    if (!DecodeReflection(Info, R, E, Args))
+    if (!DecodeMetaData(Info, R, E->getArg(0), Args[0]))
       return false;
 
     if (R.isNull()) {
@@ -5327,7 +5338,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
 
   // Get the meta_info object for unpacking.
   Reflection R;
-  if (!DecodeReflection(Info, R, E, Args))
+  if (!DecodeMetaData(Info, R, E->getArg(0), Args[0]))
     return false;
 
   // Reject null operands here.

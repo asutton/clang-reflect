@@ -278,6 +278,8 @@ def err_unsupported_ast_node: Error<"cannot import unsupported AST node %0">;
 
 // Reflection related issues
 let CategoryName = "Reflection Issue" in {
+def note_reflection_not_metadata : Note<
+  "expression does not have a reflection type; got '%0' instead">;
 def note_reflection_not_known : Note<
   "value does not refer to a reflected construct">;
 def note_empty_reflection : Note<

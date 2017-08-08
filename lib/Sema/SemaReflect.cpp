@@ -251,9 +251,11 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
   SmallVector<Expr *, 2> Operands(Args.size());
   for (std::size_t I = 0; I < Args.size(); ++I) {
     if (Args[I]->isGLValue())
-      Operands[I] = ImplicitCastExpr::Create(Context, Args[0]->getType(), 
-                                             CK_LValueToRValue, Args[0], 
+      Operands[I] = ImplicitCastExpr::Create(Context, Args[I]->getType(), 
+                                             CK_LValueToRValue, Args[I], 
                                              nullptr, VK_RValue);
+    else
+      Operands[I] = Args[I];
   }
 
   // Check the type of the first operand. ReflectPrint is polymorphic.
