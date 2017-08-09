@@ -377,6 +377,8 @@ QualType Sema::BuildReflectedType(SourceLocation TypenameLoc, Expr *E) {
   if (Decl *D = Refl.getAsDeclaration()) {
     if (TagDecl *TD = dyn_cast<TagDecl>(D))
       return Context.getTagDeclType(TD);
+    else if (ValueDecl *VD = dyn_cast<ValueDecl>(D))
+      return VD->getType();
   } else if (Type *T = Refl.getAsType()) {
     return QualType(T, 0);
   }
