@@ -2364,6 +2364,16 @@ def err_reflect_overloaded_id : Error<"reflection of overloaded identifier %0">;
 def err_reflection_failed : Error<"reflection failed">;
 def err_reflection_trait_wrong_type : Error<
   "operand does not have type %0">;
+def err_expression_not_reflection : Error<
+  "expression is not a reflection">;
+def err_expression_not_type_reflection : Error<
+  "expression does not reflect a type">;
+def reflection_not_constant_expression : Error<
+  "reflection is not a constant expression">;
+def err_reflection_not_known : Error<
+  "expression does not reflect a construct">;
+def err_empty_type_reflection : Error<
+  "cannot compute the type of an empty reflection">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<

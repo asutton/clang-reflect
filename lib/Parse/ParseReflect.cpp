@@ -145,3 +145,24 @@ ExprResult Parser::ParseCXXReflectionTrait() {
   return Actions.ActOnCXXReflectionTrait(Loc, Trait, Args, RPLoc);
 }
 
+/// Parse a type reflection specifier.
+///
+/// \verbatim
+///   reflection-type-specifier
+///     'typename' '(' constant-expression ')'
+/// \endverbatim
+///
+/// The constant expression must be a reflection of a type.
+TypeResult Parser::ParseReflectedTypeSpecifier(SourceLocation TypenameLoc,
+                                               SourceLocation &EndLoc) {
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume(diag::err_expected_lparen_after, "reflexpr"))
+    return TypeResult(true);
+  ExprResult Result = ParseConstantExpression();
+  if (!T.consumeClose()) {
+    EndLoc = T.getCloseLocation();
+    if (!Result.isInvalid())
+      return Actions.ActOnReflectedTypeSpecifier(TypenameLoc, Result.get());
+  }
+  return TypeResult(true);
+}

@@ -3065,6 +3065,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       continue;
     }
 
+    case tok::annot_refltype:
     case tok::annot_typename: {
       // If we've previously seen a tag definition, we were almost surely
       // missing a semicolon after it.
@@ -4522,6 +4523,10 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
     // typedef-name
   case tok::annot_typename:
     return true;
+
+    // [Meta] reflected-type-specifier
+  case tok::annot_refltype:
+    return true;
   }
 }
 
@@ -4604,6 +4609,10 @@ bool Parser::isTypeSpecifierQualifier() {
 
     // typedef-name
   case tok::annot_typename:
+    return true;
+
+    // [Meta] reflected-type-specifiers
+  case tok::annot_refltype:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
@@ -4783,6 +4792,9 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
 
     // [Meta] immediate
   case tok::kw_immediate:
+
+    // [Meta] reflected-type-specifier
+  case tok::annot_refltype:
 
     // C11 _Atomic
   case tok::kw__Atomic:

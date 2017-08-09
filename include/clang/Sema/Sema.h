@@ -8353,6 +8353,9 @@ public:
                                      ArrayRef<Expr *> Args,
                                      SourceLocation RPLoc);
 
+  QualType BuildReflectedType(SourceLocation TypenameLoc, Expr *E);
+  TypeResult ActOnReflectedTypeSpecifier(SourceLocation TypenameLoc, Expr *E);
+
   //===--------------------------------------------------------------------===//
   // OpenCL extensions.
   //

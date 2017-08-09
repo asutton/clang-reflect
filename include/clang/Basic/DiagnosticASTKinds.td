@@ -281,7 +281,7 @@ let CategoryName = "Reflection Issue" in {
 def note_reflection_not_metadata : Note<
   "expression does not have a reflection type; got '%0' instead">;
 def note_reflection_not_known : Note<
-  "value does not refer to a reflected construct">;
+  "expression does not reflect a construct">;
 def note_empty_reflection : Note<
   "cannot compute properties of an empty reflection">;
 def note_reflection_not_declared : Note<

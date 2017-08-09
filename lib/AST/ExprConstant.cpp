@@ -5045,6 +5045,8 @@ static void MakeReflection(ASTContext &Ctx, const Type *T, APValue &Result) {
 }
 
 // Populates R with the reflected construct. Note that R may be null.
+//
+// TODO: This shares a lot of code with the reflected type specifiers.
 static bool DecodeMetaData(EvalInfo &Info, Reflection &R, 
                            const Expr *MetaDataExpr,
                            const APValue& MetaDataVal) {
@@ -5058,7 +5060,6 @@ static bool DecodeMetaData(EvalInfo &Info, Reflection &R,
   if (Class->getIdentifier() != &Info.Ctx.Idents.get("meta_data")) {
     Info.CCEDiag(MetaDataExpr, diag::note_reflection_not_metadata) << T;
   }
-
 
   assert(MetaDataVal.isStruct());
 

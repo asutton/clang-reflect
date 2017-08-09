@@ -2595,6 +2595,9 @@ private:
 
   ExprResult ParseCXXReflectExpression();
   ExprResult ParseCXXReflectionTrait();
+  
+  TypeResult ParseReflectedTypeSpecifier(SourceLocation TypenameLoc, 
+                                        SourceLocation &EndLoc);
 
   //===--------------------------------------------------------------------===//
   // OpenMP: Directives and clauses.

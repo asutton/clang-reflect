@@ -304,3 +304,83 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
   return new (Context) CXXReflectionTraitExpr(Context, ResultTy, Kind, TraitLoc,
                                               Operands, RParenLoc);
 }
+
+/// Evaluates the given expression and yields the computed type.
+TypeResult Sema::ActOnReflectedTypeSpecifier(SourceLocation TypenameLoc,
+                                             Expr *E) {
+  QualType T = BuildReflectedType(TypenameLoc, E);
+  if (T.isNull())
+    return TypeResult(true);
+
+  // FIXME: Add parens?
+  // TypeLocBuilder TLB;
+  // ReflectedTypeLoc TL = TLB.push<ReflectedTypeLoc>(T);
+  // TL.setNameLoc(TypenameLoc);
+  // TypeSourceInfo *TSI = TLB.getTypeSourceInfo(Context, T);
+  // return CreateParsedType(T, TSI);
+
+  // FIXME: This is not right.
+  TypeSourceInfo *TSI = Context.getTrivialTypeSourceInfo(T, TypenameLoc);
+
+  return CreateParsedType(T, TSI);
+}
+
+/// Evaluates the given expression and yields the computed type.
+QualType Sema::BuildReflectedType(SourceLocation TypenameLoc, Expr *E) {
+  if (E->isTypeDependent() || E->isValueDependent())
+    return Context.getReflectedType(E, Context.DependentTy);
+
+  // The operand must be a reflection.
+  QualType T = E->getType();
+  if (!T->isRecordType()) {
+    Diag(E->getExprLoc(), diag::err_expression_not_reflection);
+    return QualType();
+  }
+  CXXRecordDecl *Class = T->getAsCXXRecordDecl();
+
+  // The expression must be one of the meta::*_info classes. Detect this
+  // by searching for a 'T::construct', which is not canonical, but sufficient
+  // for now.
+  DeclarationNameInfo DNI(&Context.Idents.get("construct"), TypenameLoc);
+  LookupResult R(*this, DNI, Sema::LookupMemberName);
+  LookupQualifiedName(R, Class);
+  if (!R.isSingleResult() || !R.getAsSingle<VarDecl>()) {
+    Diag(E->getExprLoc(), diag::err_expression_not_reflection);
+    return QualType();    
+  }
+
+  // Evaluate the reflection.
+  SmallVector<PartialDiagnosticAt, 4> Diags;
+  Expr::EvalResult Result;
+  Result.Diag = &Diags;
+  if (!E->EvaluateAsRValue(Result, Context)) {
+    Diag(E->getExprLoc(), diag::reflection_not_constant_expression);
+    for (PartialDiagnosticAt PD : Diags)
+      Diag(PD.first, PD.second);
+    return QualType();
+  }
+
+  // Decode the reflected value.
+  Reflection Refl;
+  const APValue &MetaData = Result.Val.getStructField(0);
+  const APValue &Field = MetaData.getStructField(1);
+  std::uintptr_t Handle = Field.getInt().getExtValue();
+  if (!Handle) {
+    Diag(E->getExprLoc(), diag::err_empty_type_reflection);
+    return QualType();
+  }
+  else if (!Context.GetReflection(Handle, Refl)) {
+    Diag(E->getExprLoc(), diag::err_reflection_not_known);
+    return QualType();
+  }
+
+  if (Decl *D = Refl.getAsDeclaration()) {
+    if (TagDecl *TD = dyn_cast<TagDecl>(D))
+      return Context.getTagDeclType(TD);
+  } else if (Type *T = Refl.getAsType()) {
+    return QualType(T, 0);
+  }
+  
+  Diag(E->getExprLoc(), diag::err_expression_not_type_reflection);
+  return QualType();  
+}
