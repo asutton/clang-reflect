@@ -5471,7 +5471,28 @@ QualType TreeTransform<Derived>::TransformDecltypeType(TypeLocBuilder &TLB,
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformReflectedType(TypeLocBuilder &TLB,
                                                         ReflectedTypeLoc TL) {
-  llvm_unreachable("Not implemented");
+  const ReflectedType *T = TL.getTypePtr();
+
+  // decltype expressions are not potentially evaluated contexts.
+  //
+  // FIXME: This is totally misleading, since we are definitely going to
+  // evaluate the expression (just not at runtime).
+  EnterExpressionEvaluationContext Unevaluated(
+      SemaRef, Sema::ExpressionEvaluationContext::Unevaluated, nullptr,
+      /*IsDecltype=*/true);
+
+  ExprResult E = getDerived().TransformExpr(T->getReflection());
+  if (E.isInvalid())
+    return QualType();
+
+  QualType Result = getSema().BuildReflectedType(TL.getNameLoc(), E.get());
+  if (Result.isNull())
+    return QualType();
+
+  ReflectedTypeLoc NewTL = TLB.push<ReflectedTypeLoc>(Result);
+  NewTL.setNameLoc(TL.getNameLoc());
+
+  return Result;
 }
 
 template<typename Derived>

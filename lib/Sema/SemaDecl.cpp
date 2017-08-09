@@ -12498,6 +12498,11 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
                ExprEvalContexts.back().NumCleanupObjects &&
            "Leftover temporaries in function");
     assert(!Cleanup.exprNeedsCleanups() && "Unaccounted cleanups in function");
+
+    if (!MaybeODRUseExprs.empty()) {
+      for (Expr *E : MaybeODRUseExprs)
+        E->dump();
+    }
     assert(MaybeODRUseExprs.empty() &&
            "Leftover expressions for odr-use checking");
   }

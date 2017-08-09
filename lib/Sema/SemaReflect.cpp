@@ -22,6 +22,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaInternal.h"
+#include "TypeLocBuilder.h"
 using namespace clang;
 using namespace sema;
 
@@ -140,8 +141,15 @@ bool Sema::ActOnReflectedId(CXXScopeSpec &SS, SourceLocation IdLoc,
     return false;
   }
 
-  Kind = REK_decl;
-  Entity = R.getAsSingle<NamedDecl>();
+  NamedDecl *ND = R.getAsSingle<NamedDecl>();
+  if (TypeDecl *TD = dyn_cast<TypeDecl>(ND)) {
+    Kind = REK_type;
+    QualType T = Context.getTypeDeclType(TD);
+    Entity = const_cast<Type *>(T.getTypePtr());
+  } else {
+    Kind = REK_decl;
+    Entity = R.getAsSingle<NamedDecl>();
+  }
   return true;
 }
 
@@ -172,8 +180,11 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
     NamedDecl *ND = (NamedDecl *)Entity;
     if (ValueDecl *VD = dyn_cast<ValueDecl>(ND))
       OperandTy = VD->getType();
+    else if (TypeDecl *TD = dyn_cast<TypeDecl>(ND))
+      OperandTy = Context.getTypeDeclType(TD);
   } else if (REK == REK_type) {
-    OperandTy = QualType((Type *)Entity, 0);
+    QualType T((Type *)Entity, 0);
+    OperandTy = Context.getCanonicalType(T);
   }
   else {
     llvm_unreachable("Invalid reflection");
@@ -313,15 +324,10 @@ TypeResult Sema::ActOnReflectedTypeSpecifier(SourceLocation TypenameLoc,
     return TypeResult(true);
 
   // FIXME: Add parens?
-  // TypeLocBuilder TLB;
-  // ReflectedTypeLoc TL = TLB.push<ReflectedTypeLoc>(T);
-  // TL.setNameLoc(TypenameLoc);
-  // TypeSourceInfo *TSI = TLB.getTypeSourceInfo(Context, T);
-  // return CreateParsedType(T, TSI);
-
-  // FIXME: This is not right.
-  TypeSourceInfo *TSI = Context.getTrivialTypeSourceInfo(T, TypenameLoc);
-
+  TypeLocBuilder TLB;
+  ReflectedTypeLoc TL = TLB.push<ReflectedTypeLoc>(T);
+  TL.setNameLoc(TypenameLoc);
+  TypeSourceInfo *TSI = TLB.getTypeSourceInfo(Context, T);
   return CreateParsedType(T, TSI);
 }
 
@@ -374,15 +380,20 @@ QualType Sema::BuildReflectedType(SourceLocation TypenameLoc, Expr *E) {
     return QualType();
   }
 
+  QualType Computed;
   if (Decl *D = Refl.getAsDeclaration()) {
-    if (TagDecl *TD = dyn_cast<TagDecl>(D))
-      return Context.getTagDeclType(TD);
-    else if (ValueDecl *VD = dyn_cast<ValueDecl>(D))
-      return VD->getType();
+    if (ValueDecl *VD = dyn_cast<ValueDecl>(D))
+      Computed = VD->getType();
+    if (TypeDecl *TD = dyn_cast<TypeDecl>(D))
+      Computed = Context.getTypeDeclType(TD);
   } else if (Type *T = Refl.getAsType()) {
-    return QualType(T, 0);
+    Computed = QualType(T, 0);
+  }
+
+  if (Computed.isNull()) {
+    Diag(E->getExprLoc(), diag::err_expression_not_type_reflection);
+    return QualType();  
   }
   
-  Diag(E->getExprLoc(), diag::err_expression_not_type_reflection);
-  return QualType();  
+  return Context.getReflectedType(E, Computed);
 }
