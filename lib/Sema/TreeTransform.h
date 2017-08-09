@@ -5469,6 +5469,12 @@ QualType TreeTransform<Derived>::TransformDecltypeType(TypeLocBuilder &TLB,
 }
 
 template<typename Derived>
+QualType TreeTransform<Derived>::TransformReflectedType(TypeLocBuilder &TLB,
+                                                        ReflectedTypeLoc TL) {
+  llvm_unreachable("Not implemented");
+}
+
+template<typename Derived>
 QualType TreeTransform<Derived>::TransformUnaryTransformType(
                                                             TypeLocBuilder &TLB,
                                                      UnaryTransformTypeLoc TL) {
