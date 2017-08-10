@@ -290,7 +290,12 @@ def note_reflection_not_named : Note<
   "reflected %select{entity|construct}0 does not have a name">;
 def note_reflection_not_typed : Note<
   "reflected %select{entity|construct}0 does not have a type">;
+def note_reflection_not_valued : Note<
+  "reflected %select{entity|construct}0 does not have a value">;
 def note_reflection_no_members : Note<
   "reflected %select{declaration|entity|construct}0 does not have members">;
+def note_assignment_to_object_of_different_type : Note<
+  "cannot assign to an object of different type">;
+
 }
 }

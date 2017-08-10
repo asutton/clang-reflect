@@ -2238,7 +2238,9 @@ static const char* GetReflectionTraitName(const CXXReflectionTraitExpr *E) {
     return "name";
   case URT_ReflectType:
     return "type";
-  case URT_ReflectValue:
+  case BRT_ReflectAddress:
+    return "address";
+  case BRT_ReflectValue:
     return "value";
   case URT_ReflectTraits:
     return "traits";

@@ -5268,6 +5268,87 @@ static bool isStringLiteralType(QualType T) {
   return T->isCharType() && T.isConstQualified();
 }
 
+// Reflect the value of a manifest constant.
+static bool SetReflectedValue(EvalInfo &Info, Reflection R, 
+                              const CXXReflectionTraitExpr *E,
+                              const APValue &Ref) {
+  const Expr* E0 = E->getArg(0);
+  ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration());
+  if (!VD) {
+    Info.CCEDiag(E0, diag::note_reflection_not_valued);
+    return false;
+  }
+
+  // Check that we're storing a value of the right type.
+  const Expr* E1 = E->getArg(1);
+  QualType T0 = Info.Ctx.getCanonicalType(VD->getType());
+  QualType T1 = Info.Ctx.getCanonicalType(E1->getType());
+  if (T0 != T1) {
+    Info.CCEDiag(E0, diag::note_assignment_to_object_of_different_type);
+    return false;
+  }
+
+  // Build and evaluate a reference to the constant.
+  SourceLocation Loc;
+  Expr *DR = new (Info.Ctx) DeclRefExpr(VD, false, T0, VK_RValue, Loc);
+  
+  APValue Val;
+  if (!Evaluate(Val, Info, DR))
+    return false;
+
+  // Assign the value to the reference. Note that the Reference is guaranteed
+  // to be a complete object. It's a local variable that we're assigning to.
+  LValue LV;
+  LV.setFrom(Info.Ctx, Ref);
+  CompleteObject CO = findCompleteObject(Info, E1, AK_Assign, LV, T1);
+  if (!CO)
+    return false;
+  *CO.Value = Val;
+
+  return true;
+}
+
+static bool SetReflectedAddress(EvalInfo &Info, Reflection R, 
+                                const CXXReflectionTraitExpr *E,
+                                const APValue &Ref) {
+  const Expr* E0 = E->getArg(0);
+  ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration());
+  if (!VD) {
+    Info.CCEDiag(E0, diag::note_reflection_not_valued);
+    return false;
+  }
+
+  // Check that we're storing a value of the right type.
+  const Expr* E1 = E->getArg(1);
+  QualType T0 = Info.Ctx.getCanonicalType(VD->getType());
+  QualType T1 = Info.Ctx.getCanonicalType(E1->getType());
+  if (!T1->isPointerType() || (T1->getPointeeType() != T0)) {
+    Info.CCEDiag(E0, diag::note_assignment_to_object_of_different_type);
+    return false;
+  }
+
+  // Build and evaluate the expression '&VD' to compute the address
+  // of the entity.
+  SourceLocation Loc;
+  Expr *DR = new (Info.Ctx) DeclRefExpr(VD, false, T0, VK_LValue, Loc);
+  Expr *Addr = new (Info.Ctx) UnaryOperator(DR, UO_AddrOf, T1, VK_RValue, 
+                                            OK_Ordinary, Loc);
+  APValue Val;
+  if (!Evaluate(Val, Info, Addr))
+    return false;
+
+  // Assign the value to the reference. Note that the Reference is guaranteed
+  // to be a complete object. It's a local variable that we're assigning to.
+  LValue LV;
+  LV.setFrom(Info.Ctx, Ref);
+  CompleteObject CO = findCompleteObject(Info, E1, AK_Assign, LV, T1);
+  if (!CO)
+    return false;
+  *CO.Value = Val;
+
+  return true;
+}
+
 static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E, 
                   SmallVectorImpl<APValue> &Args) {
   Expr *E0 = E->getArg(0);
@@ -5397,8 +5478,18 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       CCEDiag(E->getArg(0), diag::note_reflection_not_typed) << 0;
       return false;
     }
-    case URT_ReflectValue:
-      llvm_unreachable("not implemented");
+    case BRT_ReflectAddress: {
+      if (!SetReflectedAddress(Info, R, E, Args[1]))
+        return false;
+      APValue Zero(Info.Ctx.MakeIntValue(0, Info.Ctx.IntTy));
+      return DerivedSuccess(Zero, E);
+    }
+    case BRT_ReflectValue: {
+      if (!SetReflectedValue(Info, R, E, Args[1]))
+        return false;
+      APValue Zero(Info.Ctx.MakeIntValue(0, Info.Ctx.IntTy));
+      return DerivedSuccess(Zero, E);
+    }
     case URT_ReflectTraits: {
       APSInt Result;
       if (!MakeTraits(Info, R, E, Result))

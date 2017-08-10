@@ -1158,7 +1158,18 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
 
   case Expr::MaterializeTemporaryExprClass:
     return EmitMaterializeTemporaryExpr(cast<MaterializeTemporaryExpr>(E));
+
+  case Expr::CXXConstantExprClass: {
+    // Since this is an lvalue, we're generating a constant address.
+    const CXXConstantExpr *CE = cast<CXXConstantExpr>(E);
+    QualType T = getContext().getPointerType(CE->getType());
+    llvm::Constant *C = EmitConstantValue(CE->getValue(), T);
+    ConstantAddress Addr(C, getContext().getTypeAlignInChars(T));
+    LValueBaseInfo BI;
+    return LValue::MakeAddr(Addr, T, getContext(), BI);
   }
+  }
+
 }
 
 /// Given an object of the given canonical type, can we safely copy a

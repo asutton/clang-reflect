@@ -226,9 +226,43 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
   return new (Context) CXXConstantExpr(Reflect, std::move(Result.Val));
 }
 
+// Convert each operand to an rvalue.
+static void ConvertTraitOperands(Sema &SemaRef, ArrayRef<Expr *> Args, 
+                               SmallVectorImpl<Expr *> &Operands) {
+  for (std::size_t I = 0; I < Args.size(); ++I) {
+    if (Args[I]->isGLValue())
+      Operands[I] = ImplicitCastExpr::Create(SemaRef.Context, 
+                                             Args[I]->getType(), 
+                                             CK_LValueToRValue, Args[I], 
+                                             nullptr, VK_RValue);
+    else
+      Operands[I] = Args[I];
+  }
+}
+
+// Given two arguments, ensure the first is an rvalue and the second is
+// an lvalue.
+static bool CheckValueTraitOperands(Sema &SemaRef, ArrayRef<Expr *> Args,
+                                    SmallVectorImpl<Expr *> &Operands) {
+  assert(Args.size() == 2 && "Expected two operands");
+
+  if (Args[0]->isGLValue())
+    Operands[0] = ImplicitCastExpr::Create(SemaRef.Context, 
+                                           Args[0]->getType(), 
+                                           CK_LValueToRValue, Args[0], 
+                                           nullptr, VK_RValue);
+  if (!Args[1]->isGLValue()) {
+    SemaRef.Diag(Args[1]->getExprLoc(), 
+        diag::err_typecheck_expression_not_modifiable_lvalue);
+    return false;
+  }
+  Operands[1] = Args[1];
+  return true;
+}
+
 // Check that the argument has the right type. Ignore references and
 // cv-qualifiers on the expression.
-static bool CheckOperandType(Sema &SemaRef, Expr *E, QualType Target) {
+static bool CheckReflectionOperand(Sema &SemaRef, Expr *E, QualType Target) {
   QualType Source = E->getType();
   if (Source->isReferenceType()) 
     Source = Source->getPointeeType();
@@ -240,6 +274,7 @@ static bool CheckOperandType(Sema &SemaRef, Expr *E, QualType Target) {
   }
   return true;
 }
+
 
 ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                          ReflectionTrait Kind,
@@ -258,20 +293,18 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                                   RParenLoc);
   }
 
-  // Rewrite the arguments, converting each to an rvalue, if needed.
+  // Build a set of converted arguments.
   SmallVector<Expr *, 2> Operands(Args.size());
-  for (std::size_t I = 0; I < Args.size(); ++I) {
-    if (Args[I]->isGLValue())
-      Operands[I] = ImplicitCastExpr::Create(Context, Args[I]->getType(), 
-                                             CK_LValueToRValue, Args[I], 
-                                             nullptr, VK_RValue);
-    else
-      Operands[I] = Args[I];
+  if (Kind == BRT_ReflectAddress || Kind == BRT_ReflectValue) {
+    if (!CheckValueTraitOperands(*this, Args, Operands))
+      return ExprError();
+  } else {
+    ConvertTraitOperands(*this, Args, Operands);
   }
-
+  
   // Check the type of the first operand. ReflectPrint is polymorphic.
   if (Kind != URT_ReflectPrint) {
-    if (!CheckOperandType(*this, Operands[0], MetaDataTy))
+    if (!CheckReflectionOperand(*this, Operands[0], MetaDataTy))
       return false;
   }
 
@@ -290,8 +323,9 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
     case URT_ReflectType:
       ResultTy = MetaInfoTy;
       break;
-    case URT_ReflectValue:
-      // FIXME: Wrong!
+    case BRT_ReflectAddress:
+    case BRT_ReflectValue:
+      // Returns 0.
       ResultTy = Context.IntTy;
       break;
     case URT_ReflectTraits:
@@ -305,6 +339,7 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
       ResultTy = MetaInfoTy;
       break;
     case URT_ReflectPrint:
+      // Returns 0.
       ResultTy = Context.IntTy;
       break;
   }

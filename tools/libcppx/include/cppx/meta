@@ -622,6 +622,13 @@ struct variable_info {
   immediate bool is_inline() const noexcept {
     return traits().is_inline;
   }
+
+  template<typename T>
+  immediate T& get() const noexcept {
+    T* addr{};
+    (void)__reflect_address(data, addr);
+    return *addr;
+  }
 };
 
 /// Compile-time information about a function.
@@ -718,6 +725,13 @@ struct function_info {
 
   immediate bool is_deleted() const noexcept {
     return traits().is_deleted;
+  }
+
+  template<typename T>
+  immediate T& get() const noexcept {
+    T* addr{};
+    (void)__reflect_address(data, addr);
+    return *addr;
   }
 };
 
@@ -1670,6 +1684,13 @@ struct enumerator_info {
 
   immediate bool is_protected() const noexcept {
     return access() == protected_access;
+  }
+
+  template<typename T>
+  immediate T value() const noexcept {
+    T val{};
+    (void)__reflect_value(data, val);
+    return val;
   }
 };
 
