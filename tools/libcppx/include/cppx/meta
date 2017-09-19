@@ -54,13 +54,6 @@ enum construct_kind {
   array_type,
 };
 
-/// The meta_info alternative corresponding to the kind. Defined below.
-template<construct_kind K>
-struct construct_type;
-
-template<construct_kind K>
-using construct_type_t = typename construct_type<K>::type;
-
 enum linkage_kind {
   external_linkage,
   internal_linkage,
@@ -79,7 +72,6 @@ enum access_kind {
   private_access,
   no_access,
 };
-
 
 // WARNING: Do not modify the layout of this class or its private constructors
 // unless you also plan to modify the compiler. In other words, do not touch.
@@ -439,7 +431,6 @@ struct filter_member_range
 };
 
 
-
 // -------------------------------------------------------------------------- //
 // Declarations
 
@@ -454,6 +445,10 @@ struct translation_info {
   immediate translation_info(meta_info mi)
     : data(mi.is_translation_unit() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -491,6 +486,10 @@ struct namespace_info {
   immediate namespace_info(meta_info mi)
     : data(mi.is_namespace() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -550,6 +549,10 @@ struct variable_info {
   immediate variable_info(meta_info mi)
     : data(mi.is_variable() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -663,6 +666,10 @@ struct function_info {
     : data(mi.is_function() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -746,6 +753,10 @@ struct parameter_info {
   immediate parameter_info(meta_info mi)
     : data(mi.is_parameter() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -858,6 +869,10 @@ struct class_info {
     : data(mi.is_class() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -968,6 +983,10 @@ struct union_info {
 
   immediate union_info() = default;
   
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate union_info(meta_info mi)
     : data(mi.is_union() ? mi.data :  mi.null)
   { }
@@ -1062,6 +1081,10 @@ struct member_variable_info {
   immediate member_variable_info(meta_info mi)
     : data(mi.is_member_variable() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -1174,6 +1197,10 @@ struct member_function_info {
     : data(mi.is_member_function() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1283,6 +1310,10 @@ struct constructor_info {
     : data(mi.is_constructor() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1382,6 +1413,10 @@ struct destructor_info {
   immediate destructor_info(meta_info mi)
     : data(mi.is_destructor() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -1494,12 +1529,16 @@ struct conversion_info {
     : data(mi.is_conversion() ? mi.data : mi.null)
   { }
 
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
+  static immediate construct_kind index() noexcept {
+    return construct;
   }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate explicit operator bool() const noexcept { 
+    return has_value(); 
   }
 
   immediate bool has_value() const noexcept { 
@@ -1542,6 +1581,10 @@ struct enum_info {
   immediate enum_info(meta_info mi)
     : data(mi.is_enum() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -1630,6 +1673,10 @@ struct enumerator_info {
     : data(mi.is_enumerator() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1714,6 +1761,10 @@ struct access_info {
     : data(mi.is_access_specifier() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1763,6 +1814,10 @@ struct void_type_info {
     : data(mi.is_void_type() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1791,6 +1846,10 @@ struct character_type_info {
   immediate character_type_info(meta_info mi)
     : data(mi.is_character_type() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -1821,6 +1880,10 @@ struct integral_type_info {
     : data(mi.is_integral_type() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1849,6 +1912,10 @@ struct floating_point_type_info {
   immediate floating_point_type_info(meta_info mi)
     : data(mi.is_floating_point_type() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -1879,6 +1946,10 @@ struct reference_type_info {
     : data(mi.is_reference_type() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1907,6 +1978,10 @@ struct function_type_info {
   immediate function_type_info(meta_info mi)
     : data(mi.is_function_type() ? mi.data : mi.null)
   { }
+
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
@@ -1937,6 +2012,10 @@ struct pointer_type_info {
     : data(mi.is_pointer_type() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1966,6 +2045,10 @@ struct array_type_info {
     : data(mi.is_array_type() ? mi.data : mi.null)
   { }
 
+  static immediate construct_kind index() noexcept {
+    return construct;
+  }
+
   immediate operator meta_info() const noexcept {
     return meta_info(data);
   }
@@ -1982,51 +2065,6 @@ struct array_type_info {
     return __reflect_name(data);
   }
 };
-
-// -------------------------------------------------------------------------- //
-// Construct kind
-
-template<> 
-struct construct_type<translation_unit> { using type = translation_info; };
-template<> 
-struct construct_type<namespace_decl> { using type = namespace_info; };
-template<> 
-struct construct_type<variable_decl> { using type = variable_info; };
-template<> 
-struct construct_type<function_decl> { using type = function_info; };
-template<> 
-struct construct_type<parameter_decl> { using type = parameter_info; };
-template<> 
-struct construct_type<class_decl> { using type = class_info; };
-template<> 
-struct construct_type<union_decl> { using type = union_info; };
-template<> 
-struct construct_type<member_variable_decl> { using type = member_variable_info; };
-template<> 
-struct construct_type<member_function_decl> { using type = member_function_info; };
-template<> 
-struct construct_type<enum_decl> { using type = enum_info; };
-template<> 
-struct construct_type<enumerator_decl> { using type = enumerator_info; };
-template<> 
-struct construct_type<access_spec> { using type = access_info; };
-
-template<> 
-struct construct_type<void_type> { using type = void_type_info; };
-template<> 
-struct construct_type<character_type> { using type = character_type_info; };
-template<> 
-struct construct_type<integral_type> { using type = integral_type_info; };
-template<> 
-struct construct_type<floating_point_type> { using type = floating_point_type_info; };
-template<> 
-struct construct_type<reference_type> { using type = reference_type_info; };
-template<> 
-struct construct_type<function_type> { using type = function_type_info; };
-template<> 
-struct construct_type<pointer_type> { using type = pointer_type_info; };
-template<> 
-struct construct_type<array_type> { using type = array_type_info; };
 
 
 // -------------------------------------------------------------------------- //

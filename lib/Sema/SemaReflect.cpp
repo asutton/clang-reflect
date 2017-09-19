@@ -116,7 +116,8 @@ static QualType getConstructKindType(Sema &SemaRef, SourceLocation Loc) {
   return KindTy;
 }
 
-/// Lookup the declaration named by SS and Id. Return
+/// Lookup the declaration named by SS and Id. Populates the the kind
+/// and entity with the encoded reflection of the named entity.
 bool Sema::ActOnReflectedId(CXXScopeSpec &SS, SourceLocation IdLoc,
                             IdentifierInfo *Id, unsigned &Kind, 
                             ParsedReflectionPtr &Entity) {
@@ -129,7 +130,7 @@ bool Sema::ActOnReflectedId(CXXScopeSpec &SS, SourceLocation IdLoc,
     // alternatives for an ambiguous lookup.
     //
     // FIXME: I believe that we would eventually like to support overloaded
-    // declarations.
+    // declarations and templates.
     if (R.isAmbiguous())
       Diag(IdLoc, diag::err_reflect_ambiguous_id) << Id;
     else if (R.isOverloadedResult())
@@ -141,50 +142,123 @@ bool Sema::ActOnReflectedId(CXXScopeSpec &SS, SourceLocation IdLoc,
     return false;
   }
 
-  NamedDecl *ND = R.getAsSingle<NamedDecl>();
-  if (TypeDecl *TD = dyn_cast<TypeDecl>(ND)) {
-    Kind = REK_type;
-    QualType T = Context.getTypeDeclType(TD);
-    Entity = const_cast<Type *>(T.getTypePtr());
-  } else {
+  // Reflect the named entity.
+  Entity = R.getAsSingle<NamedDecl>();
+  Kind = REK_decl;
+  return true;
+}
+
+/// Populates the kind and entity with the encoded reflection of the type.
+bool Sema::ActOnReflectedType(Declarator &D, unsigned &Kind, 
+                              ParsedReflectionPtr &Entity) {
+  TypeSourceInfo *TSI = GetTypeForDeclarator(D, CurScope);
+  QualType T = TSI->getType();
+  if (TagDecl *TD = T->getAsTagDecl()) {
+    // Handle elaborated type specifiers as if they were declarations.
+    Entity = TD;
     Kind = REK_decl;
-    Entity = R.getAsSingle<NamedDecl>();
+  } else {
+    // Otherwise, this is a type reflection.
+    Entity = const_cast<Type*>(T.getTypePtr());
+    Kind = REK_type;
   }
   return true;
 }
 
-bool Sema::ActOnReflectedType(Declarator &D, unsigned &Kind, 
-                              ParsedReflectionPtr &Entity) {
-  TypeSourceInfo *TSI = GetTypeForDeclarator(D, CurScope);
-  Kind = REK_type;
-  Entity = const_cast<Type*>(TSI->getType().getTypePtr());
-  return true;
+static QualType GetMetaType(Sema &SemaRef, const char* Name, 
+                            SourceLocation Loc) {
+  return LookupMetaDecl(SemaRef, Name, Loc);
 }
 
+static QualType GetMetaType(Sema &SemaRef, const NamedDecl *D, 
+                            SourceLocation Loc) {
+  switch (D->getKind()) {
+    case Decl::TranslationUnit:
+      return GetMetaType(SemaRef, "translation_info", Loc);
+    case Decl::Namespace:
+      return GetMetaType(SemaRef, "namespace_info", Loc);
+    case Decl::Var:
+      return GetMetaType(SemaRef, "variable_info", Loc);
+    case Decl::Function:
+      return GetMetaType(SemaRef, "function_info", Loc);
+    case Decl::ParmVar:
+      return GetMetaType(SemaRef, "parameter_info", Loc);
+    case Decl::CXXRecord: {
+      const CXXRecordDecl *Class = cast<CXXRecordDecl>(D);
+      if (Class->isUnion())
+        return GetMetaType(SemaRef, "union_info", Loc);
+      else
+        return GetMetaType(SemaRef, "class_info", Loc);
+    }
+    case Decl::Field:
+      return GetMetaType(SemaRef, "member_variable_info", Loc);
+    case Decl::CXXMethod:
+      return GetMetaType(SemaRef, "member_function_info", Loc);
+    case Decl::CXXConstructor:
+      return GetMetaType(SemaRef, "constructor_info", Loc);
+    case Decl::CXXDestructor:
+      return GetMetaType(SemaRef, "destructor_info", Loc);
+    case Decl::Enum:
+      return GetMetaType(SemaRef, "enum_info", Loc);
+    case Decl::EnumConstant:
+      return GetMetaType(SemaRef, "enumerator_info", Loc);
+    default:
+      break;
+  }
+#ifndef NDEBUG
+  D->dump();
+#endif
+  llvm_unreachable("invalid declaration reflection");
+}
+
+static QualType GetMetaType(Sema &SemaRef, const Type *T,
+                            SourceLocation Loc) {
+  if (T->isVoidType())
+    return GetMetaType(SemaRef, "void_type_info", Loc);
+  if (T->isAnyCharacterType())
+    return GetMetaType(SemaRef, "character_type_info", Loc);
+  if (T->isIntegralType(SemaRef.Context))
+    return GetMetaType(SemaRef, "integral_type_info", Loc);
+  if (T->isFloatingType())
+    return GetMetaType(SemaRef, "floating_point_type_info", Loc);
+  if (T->isReferenceType())
+    return GetMetaType(SemaRef, "reference_type_info", Loc);
+  if (T->isFunctionType())
+    return GetMetaType(SemaRef, "function_type_info", Loc);
+  if (T->isPointerType())
+    return GetMetaType(SemaRef, "pointer_type_info", Loc);
+  if (T->isArrayType())
+    return GetMetaType(SemaRef, "array_type_info", Loc);
+#ifndef NDEBUG
+  T->dump();
+#endif
+  llvm_unreachable("invalid type reflection");
+}
+
+/// Returns a constant expression that encodes the value of the reflection.
+/// The type of expression is determined by the kind of entity reflected.
 ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind, 
                                            ParsedReflectionPtr Entity,
                                            SourceLocation LPLoc, 
                                            SourceLocation RPLoc) {
-  
-  // Require the right header file whenever the operator is used.
-  QualType Meta = getMetaInfoType(KWLoc);
-  if (Meta.isNull())
-    return ExprError();
-
   ReflectionKind REK = (ReflectionKind)Kind;
   Reflection Ref = Reflection::FromKindAndPtr(REK, Entity);
 
-  // Get a type for the reflection.
+  // Get a type for the entity and compute the type of the expression.
+  QualType ReflectionTy = Context.DependentTy;
   QualType OperandTy;
   if (REK == REK_decl) {
     NamedDecl *ND = (NamedDecl *)Entity;
-    if (ValueDecl *VD = dyn_cast<ValueDecl>(ND))
+    if (ValueDecl *VD = dyn_cast<ValueDecl>(ND)) 
       OperandTy = VD->getType();
     else if (TypeDecl *TD = dyn_cast<TypeDecl>(ND))
       OperandTy = Context.getTypeDeclType(TD);
+    if (!OperandTy.isNull())
+      OperandTy = Context.getCanonicalType(OperandTy);
+    ReflectionTy = GetMetaType(*this, ND, KWLoc);
   } else if (REK == REK_type) {
-    QualType T((Type *)Entity, 0);
-    OperandTy = Context.getCanonicalType(T);
+    OperandTy = Context.getCanonicalType(QualType((Type *)Entity, 0));
+    ReflectionTy = GetMetaType(*this, OperandTy.getTypePtr(), KWLoc);
   }
   else {
     llvm_unreachable("Invalid reflection");
@@ -198,16 +272,17 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
 
   if (IsTypeDependent)
     // If the operand is type dependent, the result is value dependent.
-    return new (Context) CXXReflectExpr(KWLoc, Meta, Ref, LPLoc, RPLoc,
-                                           VK_RValue, 
-                                           /*IsTypeDependent=*/false, 
-                                           /*IsValueDependent=*/IsTypeDependent, 
+    return new (Context) CXXReflectExpr(KWLoc, Context.DependentTy, Ref, LPLoc, 
+                                        RPLoc, VK_RValue,
+                                        /*IsTypeDependent=*/false, 
+                                        /*IsValueDependent=*/IsTypeDependent, 
                                       OperandTy->isInstantiationDependentType(), 
                                   OperandTy->containsUnexpandedParameterPack());
 
   // The declaration is a non-dependent value decl.
   CXXReflectExpr *Reflect
-      = new (Context) CXXReflectExpr(KWLoc, Meta, Ref, LPLoc, RPLoc, VK_RValue,
+      = new (Context) CXXReflectExpr(KWLoc, ReflectionTy, Ref, LPLoc, RPLoc, 
+                                     VK_RValue,
                                      /*IsTypeDependent=*/false, 
                                      /*IsValueDependent=*/false, 
                                      /*IsInstantiationDependent=*/false, 
@@ -280,7 +355,6 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                          ReflectionTrait Kind,
                                          ArrayRef<Expr *> Args,
                                          SourceLocation RParenLoc) {
-
   QualType MetaDataTy = getMetaDataType(*this, TraitLoc);
   QualType MetaInfoTy = getMetaInfoType(TraitLoc);
 
