@@ -1423,6 +1423,11 @@ public:
     return getSema().ActOnCXXReflectionTrait(TraitLoc, Trait, Args, RParenLoc);
   }
 
+  /// \brief Build a new reflected value expression.
+  ExprResult RebuildCXXReflectedValueExpr(SourceLocation Loc, Expr *E) {
+    return getSema().BuildCXXReflectedValueExpression(Loc, E);
+  }
+
   /// \brief Build a new Objective-C \@try statement.
   ///
   /// By default, performs semantic analysis to build the new statement.
@@ -7104,6 +7109,17 @@ TreeTransform<Derived>::TransformCXXReflectionTraitExpr(
 
   return getDerived().RebuildCXXReflectionTraitExpr(
       E->getTraitLoc(), E->getTrait(), Args, E->getRParenLoc());
+}
+
+template <typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCXXReflectedValueExpr(
+                                                     CXXReflectedValueExpr *E) {
+  ExprResult Reflection = TransformExpr(E->getReflection());
+  if (Reflection.isInvalid())
+    return ExprError();
+  return getDerived().RebuildCXXReflectedValueExpr(E->getExprLoc(), 
+                                                   Reflection.get());
 }
 
 // Objective-C Statements.

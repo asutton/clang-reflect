@@ -337,6 +337,10 @@ void ASTStmtWriter::VisitCXXReflectionTraitExpr(CXXReflectionTraitExpr *E) {
   llvm_unreachable("unimplemented");
 }
 
+void ASTStmtWriter::VisitCXXReflectedValueExpr(CXXReflectedValueExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtWriter::VisitCapturedStmt(CapturedStmt *S) {
   VisitStmt(S);
   // NumCaptures

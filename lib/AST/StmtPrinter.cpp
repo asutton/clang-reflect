@@ -2527,6 +2527,12 @@ void StmtPrinter::VisitCXXReflectionTraitExpr(CXXReflectionTraitExpr *E) {
   OS << ')';
 }
 
+void StmtPrinter::VisitCXXReflectedValueExpr(CXXReflectedValueExpr *E) {
+  OS << "valueof(";
+  PrintExpr(E->getReflection());
+  OS << ')';
+}
+
 // Obj-C
 
 void StmtPrinter::VisitObjCStringLiteral(ObjCStringLiteral *Node) {

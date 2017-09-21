@@ -8353,6 +8353,9 @@ public:
                                      ArrayRef<Expr *> Args,
                                      SourceLocation RPLoc);
 
+  ExprResult ActOnCXXReflectedValueExpression(SourceLocation Loc, Expr *Ref);
+  ExprResult BuildCXXReflectedValueExpression(SourceLocation Loc, Expr *Ref);
+
   QualType BuildReflectedType(SourceLocation TypenameLoc, Expr *E);
   TypeResult ActOnReflectedTypeSpecifier(SourceLocation TypenameLoc, Expr *E);
 

@@ -420,6 +420,10 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
 
   case Expr::CXXConstantExprClass:
     return ClassifyInternal(Ctx, cast<CXXConstantExpr>(E)->getExpression());
+
+  case Expr::CXXReflectedValueExprClass: {
+    return ClassifyInternal(Ctx, cast<CXXReflectedValueExpr>(E)->getReference());
+  }
   }
 
   llvm_unreachable("unhandled expression kind in classification");

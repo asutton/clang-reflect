@@ -22,6 +22,8 @@ namespace meta
 inline namespace v1
 {
 
+using reflection_t = std::uintptr_t;
+
 // TODO: Keep this in sync with the compiler.
 enum construct_kind {
   any_construct = -1, // The static index of meta_info.
@@ -89,7 +91,7 @@ struct meta_data
   unsigned category;
 
   /// The handle to the reflected construct.
-  std::uintptr_t handle;
+  reflection_t handle;
 };
 
 immediate bool operator==(meta_data a, meta_data b) noexcept {
@@ -124,6 +126,10 @@ struct meta_info {
   static constexpr construct_kind construct = any_construct;
 
   immediate meta_info() = default;
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
 
   immediate construct_kind index() const noexcept { 
     return __reflect_index(data); 
@@ -454,6 +460,10 @@ struct translation_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -493,6 +503,10 @@ struct namespace_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -556,6 +570,10 @@ struct variable_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -674,6 +692,9 @@ struct function_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -760,6 +781,10 @@ struct parameter_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -875,6 +900,10 @@ struct class_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -995,6 +1024,10 @@ struct union_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1088,6 +1121,10 @@ struct member_variable_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -1205,6 +1242,10 @@ struct member_function_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1318,6 +1359,10 @@ struct constructor_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1420,6 +1465,10 @@ struct destructor_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -1537,6 +1586,10 @@ struct conversion_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1588,6 +1641,10 @@ struct enum_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -1681,6 +1738,10 @@ struct enumerator_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1769,6 +1830,10 @@ struct access_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1820,6 +1885,10 @@ struct void_type_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -1888,6 +1957,10 @@ struct integral_type_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1919,6 +1992,10 @@ struct floating_point_type_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -1954,6 +2031,10 @@ struct reference_type_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -1985,6 +2066,10 @@ struct function_type_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -2020,6 +2105,10 @@ struct pointer_type_info {
     return meta_info(data);
   }
 
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
+  }
+
   immediate explicit operator bool() const noexcept { 
     return has_value(); 
   }
@@ -2051,6 +2140,10 @@ struct array_type_info {
 
   immediate operator meta_info() const noexcept {
     return meta_info(data);
+  }
+
+  immediate reflection_t handle() const noexcept {
+    return data.handle;
   }
 
   immediate explicit operator bool() const noexcept { 
@@ -2150,11 +2243,11 @@ struct compiler_type {
     (void)__reflect_print(str);
   }
 
-  template<typename T>
-  static immediate std::enable_if_t<std::is_integral_v<T>, void>
-  print(T n) noexcept {
-    (void)__reflect_print(n);
-  }
+  // template<typename T>
+  // static immediate std::enable_if_t<std::is_integral_v<T>, void>
+  // print(T n) noexcept {
+  //   (void)__reflect_print(n);
+  // }
 
   // Specialization for reflected types.
   template<typename T>

@@ -291,6 +291,7 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc, unsigned Kind,
   // Never defer evaluation.
   SmallVector<PartialDiagnosticAt, 4> Diags;
   Expr::EvalResult Result;
+  Result.Diag = &Diags;
   if (!Reflect->EvaluateAsRValue(Result, Context)) {
     Diag(KWLoc, diag::err_reflection_failed);
     for (PartialDiagnosticAt PD : Diags)
@@ -349,7 +350,6 @@ static bool CheckReflectionOperand(Sema &SemaRef, Expr *E, QualType Target) {
   }
   return true;
 }
-
 
 ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                          ReflectionTrait Kind,
@@ -425,6 +425,121 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                               Operands, RParenLoc);
 }
 
+// Check that T is one of the meta:: types. Returns false if not.
+static bool CheckReflectionType(Sema &SemaRef, QualType T, SourceLocation Loc) {
+  // The operand must be a reflection.
+  if (!T->isRecordType()) {
+    SemaRef.Diag(Loc, diag::err_expression_not_reflection);
+    return false;
+  }
+  CXXRecordDecl *Class = T->getAsCXXRecordDecl();
+
+  // The expression must be one of the meta::*_info classes. Detect this
+  // by searching for a 'T::construct', which is not canonical, but sufficient
+  // for now.
+  DeclarationNameInfo DNI(&SemaRef.Context.Idents.get("construct"), Loc);
+  LookupResult R(SemaRef, DNI, Sema::LookupMemberName);
+  SemaRef.LookupQualifiedName(R, Class);
+  if (!R.isSingleResult() || !R.getAsSingle<VarDecl>()) {
+    SemaRef.Diag(Loc, diag::err_expression_not_reflection);
+    return false;
+  }
+
+  return true;
+}
+
+ExprResult Sema::ActOnCXXReflectedValueExpression(SourceLocation Loc, 
+                                                  Expr *Reflection) {
+  return BuildCXXReflectedValueExpression(Loc, Reflection);
+}
+
+ExprResult Sema::BuildCXXReflectedValueExpression(SourceLocation Loc, 
+                                                  Expr *E) {
+  // Don't act on dependent expressions, just preserve them.
+  if (E->isTypeDependent() || E->isValueDependent())
+    return new (Context) CXXReflectedValueExpr(E, Context.DependentTy,
+                                               VK_RValue, Loc);
+
+  // The operand must be a reflection.
+  if (E->getType() != Context.getUIntPtrType() &&
+      !CheckReflectionType(*this, E->getType(), E->getExprLoc()))
+    return ExprError();
+
+  // Evaluate the reflection.
+  SmallVector<PartialDiagnosticAt, 4> Diags;
+  Expr::EvalResult Result;
+  Result.Diag = &Diags;
+  if (!E->EvaluateAsRValue(Result, Context)) {
+    Diag(E->getExprLoc(), diag::reflection_not_constant_expression);
+    for (PartialDiagnosticAt PD : Diags)
+      Diag(PD.first, PD.second);
+    return ExprError();
+  }
+
+  // Unpack the reflection.
+  std::uintptr_t Handle = 0;
+  if (E->getType() == Context.getUIntPtrType()) {
+    Handle = Result.Val.getInt().getExtValue();
+  } else {
+    const APValue &MetaData = Result.Val.getStructField(0);
+    const APValue &Field = MetaData.getStructField(1);
+    Handle = Field.getInt().getExtValue();
+  }
+  if (!Handle) {
+    Diag(E->getExprLoc(), diag::err_empty_type_reflection);
+    return ExprError();
+  }
+  
+  Reflection Refl;
+  if (!Context.GetReflection(Handle, Refl)) {
+    Diag(E->getExprLoc(), diag::err_reflection_not_known);
+    return ExprError();
+  }
+
+  if (Decl *D = Refl.getAsDeclaration()) {
+    if (isa<CXXConstructorDecl>(D)) {
+      Diag(E->getExprLoc(), diag::err_cannot_project_value) << 0;
+      return ExprError();
+    }
+    if (isa<CXXDestructorDecl>(D)) {
+      Diag(E->getExprLoc(), diag::err_cannot_project_value) << 1;
+      return ExprError();
+    }
+
+    if (ValueDecl *VD = dyn_cast<ValueDecl>(D)) {
+      CXXScopeSpec SS;
+      DeclarationNameInfo DNI(VD->getDeclName(), VD->getLocation());
+      ExprResult Ref = BuildDeclarationNameExpr(SS, DNI, VD);
+      if (Ref.isInvalid())
+        return ExprError();
+
+      // The "value" of member variables and non-static data members must be
+      // addresses. Compute these as special cases.
+      if (FieldDecl *Field = dyn_cast<FieldDecl>(VD)) {
+        QualType Class = Context.getTagDeclType(Field->getParent());
+        QualType Ptr = Context.getMemberPointerType(Field->getType(), 
+                                                      Class.getTypePtr());
+        return new (Context) UnaryOperator(Ref.get(), UO_AddrOf, Ptr, VK_RValue, 
+                                           OK_Ordinary, Loc);
+      }
+      else if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(VD)) {
+        if (Method->isInstance()) {
+          QualType Class = Context.getTagDeclType(Method->getParent());
+          QualType Ptr = Context.getMemberPointerType(Method->getType(), 
+                                                      Class.getTypePtr());
+          return new (Context) UnaryOperator(Ref.get(), UO_AddrOf, Ptr, 
+                                             VK_RValue, OK_Ordinary, Loc);
+        }
+      }
+      
+      return Ref.get();
+    }
+  }
+
+  Diag(E->getExprLoc(), diag::err_expression_not_type_reflection);
+  return ExprError();
+}
+
 /// Evaluates the given expression and yields the computed type.
 TypeResult Sema::ActOnReflectedTypeSpecifier(SourceLocation TypenameLoc,
                                              Expr *E) {
@@ -446,23 +561,8 @@ QualType Sema::BuildReflectedType(SourceLocation TypenameLoc, Expr *E) {
     return Context.getReflectedType(E, Context.DependentTy);
 
   // The operand must be a reflection.
-  QualType T = E->getType();
-  if (!T->isRecordType()) {
-    Diag(E->getExprLoc(), diag::err_expression_not_reflection);
+  if (!CheckReflectionType(*this, E->getType(), E->getExprLoc()))
     return QualType();
-  }
-  CXXRecordDecl *Class = T->getAsCXXRecordDecl();
-
-  // The expression must be one of the meta::*_info classes. Detect this
-  // by searching for a 'T::construct', which is not canonical, but sufficient
-  // for now.
-  DeclarationNameInfo DNI(&Context.Idents.get("construct"), TypenameLoc);
-  LookupResult R(*this, DNI, Sema::LookupMemberName);
-  LookupQualifiedName(R, Class);
-  if (!R.isSingleResult() || !R.getAsSingle<VarDecl>()) {
-    Diag(E->getExprLoc(), diag::err_expression_not_reflection);
-    return QualType();    
-  }
 
   // Evaluate the reflection.
   SmallVector<PartialDiagnosticAt, 4> Diags;

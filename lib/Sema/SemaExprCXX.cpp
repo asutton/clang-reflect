@@ -7652,7 +7652,7 @@ Sema::FinishCallExpr(Expr *E)
 
   if (CXXMemberCallExpr *MemCall = dyn_cast<CXXMemberCallExpr>(E)) {
     CXXMethodDecl *Method = MemCall->getMethodDecl();
-    if (Method->isImmediate()) {
+    if (Method && Method->isImmediate()) {
       ExprResult Value = EvaluateImmediateFunction(*this, MemCall);
       if (Value.isInvalid())
         return ExprError();
@@ -7660,7 +7660,7 @@ Sema::FinishCallExpr(Expr *E)
     }
   } else if (CallExpr *Call = dyn_cast<CallExpr>(E)) {
     if (FunctionDecl *Callee = Call->getDirectCallee()) {
-      if (Callee->isImmediate()) {
+      if (Callee && Callee->isImmediate()) {
         ExprResult Value = EvaluateImmediateFunction(*this, Call);
         if (Value.isInvalid())
           return ExprError();

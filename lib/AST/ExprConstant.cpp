@@ -4884,6 +4884,10 @@ public:
 
   bool VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *E);
 
+  bool VisitCXXReflectedValueExpr(const CXXReflectedValueExpr *E) {
+    llvm_unreachable("unimplemented");
+  }
+
   /// Visit a value which is evaluated, but whose value is ignored.
   void VisitIgnoredValue(const Expr *E) {
     EvaluateIgnoredValue(Info, E);
@@ -10936,6 +10940,10 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CoyieldExprClass:
   case Expr::CXXReflectExprClass:
     return ICEDiag(IK_NotICE, E->getLocStart());
+
+  case Expr::CXXReflectedValueExprClass:
+    // A reflected value is an ICE if it's reference is.
+    return CheckICE(cast<CXXReflectedValueExpr>(E)->getReference(), Ctx);
 
   case Expr::InitListExprClass: {
     // C++03 [dcl.init]p13: If T is a scalar type, then a declaration of the

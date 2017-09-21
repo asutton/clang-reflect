@@ -2595,6 +2595,7 @@ private:
 
   ExprResult ParseCXXReflectExpression();
   ExprResult ParseCXXReflectionTrait();
+  ExprResult ParseCXXReflectedValueExpression();
   
   TypeResult ParseReflectedTypeSpecifier(SourceLocation TypenameLoc, 
                                         SourceLocation &EndLoc);

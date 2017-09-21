@@ -1750,6 +1750,10 @@ void StmtProfiler::VisitCXXReflectionTraitExpr(
   VisitExpr(E);
 }
 
+void StmtProfiler::VisitCXXReflectedValueExpr(const CXXReflectedValueExpr *E) {
+  VisitExpr(E);
+}
+
 void StmtProfiler::VisitTypoExpr(const TypoExpr *E) {
   VisitExpr(E);
 }
