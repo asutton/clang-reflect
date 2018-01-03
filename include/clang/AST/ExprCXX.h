@@ -4364,16 +4364,16 @@ public:
   Reflection getReflectedEntity() const { return Ref; }
 
   /// \brief True if the expression reflects a declaration.
-  bool isReflectedDeclaration() { return Ref.isDeclaration(); }
+  bool isReflectedDeclaration() const { return Ref.isDeclaration(); }
 
   /// \brief True if the expression reflects a type.
-  bool isReflectedType() { return Ref.isDeclaration(); }
+  bool isReflectedType() const { return Ref.isDeclaration(); }
 
   /// \brief The reflected declaration.
-  Decl *getReflectedDeclaration() { return Ref.getAsDeclaration(); }
+  const Decl *getReflectedDeclaration() const { return Ref.getAsDeclaration(); }
 
   /// \brief The reflected type.
-  Type *getReflectedType() { return Ref.getAsType(); }
+  const Type *getReflectedType() const { return Ref.getAsType(); }
 
   SourceLocation getLocStart() const LLVM_READONLY { 
     return KWLoc; 

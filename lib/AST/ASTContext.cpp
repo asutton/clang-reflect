@@ -9577,20 +9577,6 @@ unsigned ASTContext::getTargetAddressSpace(unsigned AS) const {
     return (*AddrSpaceMap)[AS];
 }
 
-StringLiteral *ASTContext::MakeReflectedString(StringRef Str, 
-                                               SourceLocation Loc) {
-  auto Result = ReflectedStrings.insert({Str, nullptr});
-  if (Result.second) {
-    llvm::APInt Extent(32, Str.size() + 1);
-    QualType StrTy = getConstantArrayType(CharTy.withConst(), Extent, 
-                                          ArrayType::Normal, 0);
-    Result.first->second = StringLiteral::Create(*this, Str, 
-                                                 StringLiteral::Ascii, false,
-                                                 StrTy, Loc);
-  }
-  return Result.first->second;
-}
-
 // Explicitly instantiate this in case a Redeclarable<T> is used from a TU that
 // doesn't include ASTContext.h
 template

@@ -2493,16 +2493,16 @@ void StmtPrinter::VisitCXXConstantExpr(CXXConstantExpr *S) {
 
 void StmtPrinter::VisitCXXReflectExpr(CXXReflectExpr *S) {
   OS << "reflexpr(";
-  if (Decl *D = S->getReflectedDeclaration()) {
-    if (NamedDecl *ND = dyn_cast<NamedDecl>(D))
+  if (const Decl *D = S->getReflectedDeclaration()) {
+    if (const NamedDecl *ND = dyn_cast<NamedDecl>(D))
       OS << ND->getDeclName();
     else
       OS << "<non-printable>"; // FIXME: ???
-  }
-  else if (Type *T = S->getReflectedType()) 
+  } else if (const Type *T = S->getReflectedType()) {
     QualType(T, 0).print(OS, Policy);
-  else
+  } else {
     llvm_unreachable("invalid reflection");
+  }
   OS << ")";
 }
 

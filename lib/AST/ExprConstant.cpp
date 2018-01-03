@@ -4869,17 +4869,8 @@ public:
   }
 
   bool VisitCXXReflectExpr(const CXXReflectExpr *E) {
-    // TODO: Create a value corresponding to a reflection of a meta_info 
     Reflection Ref = E->getReflectedEntity();
-
-    // Active the reflection for subsequent lookup.
-    Info.Ctx.AddReflection(Ref);
-
-    // Create the meta_info wrapper object and populate the nested
-    // meta_data structure.
-    APValue Result(APValue::UninitStruct(), 0, 1);
-    Result.getStructField(0) = Ref.getMetaData(Info.Ctx);
-    return DerivedSuccess(Result, E);
+    return DerivedSuccess(Ref.getConstantValue(Info.Ctx), E);
   }
 
   bool VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *E);
@@ -4903,10 +4894,8 @@ public:
   }
 };
 
-// TODO: Keep this in sync with cppx::meta::construct_kind
+// TODO: Keep this in sync with cppx::meta::object_kind.
 enum ConstructKind {
-  CK_Any = -1,
-
   CK_Null = 0,
 
   CK_TranslationUnit, 
@@ -4935,8 +4924,8 @@ enum ConstructKind {
   CK_ArrayType,
 };
 
-std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
-  if (Decl *D = R.getAsDeclaration()) {
+static std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
+  if (const Decl *D = R.getAsDeclaration()) {
     switch (D->getKind()) {
     case Decl::TranslationUnit:
       return CK_TranslationUnit;
@@ -4965,7 +4954,7 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
     case Decl::AccessSpec:
       return CK_AccessSpec;
     case Decl::CXXRecord: {
-      TagDecl *TD = cast<TagDecl>(D);
+      const TagDecl *TD = cast<TagDecl>(D);
       if (TD->isStruct() || TD->isClass())
         return CK_ClassDecl;
       else
@@ -4976,10 +4965,12 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
     case Decl::EnumConstant:
       return CK_EnumeratorDecl;
     default:
+#ifndef NDEBUG
       D->dump();
+#endif
       llvm_unreachable("reflection of unhandled declaration kind");
     }
-  } else if (Type *T = R.getAsType()) {
+  } else if (const Type *T = R.getAsType()) {
     switch (T->getTypeClass()) {
     case Type::Builtin:
       if (T->isVoidType())
@@ -5004,7 +4995,9 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
     case Type::IncompleteArray:
       return CK_ArrayType;
     default:
+#ifndef NDEBUG
       T->dump();
+#endif
       llvm_unreachable("reflection of unhandled type kind");
     }
   } else {
@@ -5013,70 +5006,15 @@ std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
 }
 
 /// Build a reflection of the declaration in Result.
-static void MakeReflection(ASTContext &Ctx, Decl *D, APValue &Result) {
-  Result = APValue(APValue::UninitStruct(), 0, 1);
-  if (D) {
-    Reflection Ref = Reflection::ReflectDeclaration(D);
-    Ctx.AddReflection(Ref);
-    Result.getStructField(0) = Ref.getMetaData(Ctx);
-  } else {
-    // TODO: Add getEmptyMetaData() to Reflection.
-    APSInt Null = Ctx.MakeIntValue(0, Ctx.UnsignedIntTy);
-    APSInt Invalid = Ctx.MakeIntValue(0, Ctx.getSizeType());
-    APValue MetaData(APValue::UninitStruct(), 0, 2);
-    MetaData.getStructField(0) = APValue(Null);
-    MetaData.getStructField(1) = APValue(Invalid);
-    Result.getStructField(0) = MetaData;
-  }
+static void MakeReflection(ASTContext &Ctx, const Decl *D, APValue &Result) {
+  Reflection R = D;
+  R.getConstantValue(Ctx, Result);
 }
 
 /// Build a reflection of the declaration in Result.
 static void MakeReflection(ASTContext &Ctx, const Type *T, APValue &Result) {
-  Result = APValue(APValue::UninitStruct(), 0, 1);
-  if (T) {
-    Reflection Ref = Reflection::ReflectType(const_cast<Type*>(T));
-    Ctx.AddReflection(Ref);
-    Result.getStructField(0) = Ref.getMetaData(Ctx);
-  } else {
-    // TODO: Add getEmptyMetaData() to Reflection.
-    APSInt Null = Ctx.MakeIntValue(0, Ctx.UnsignedIntTy);
-    APSInt Invalid = Ctx.MakeIntValue(0, Ctx.getSizeType());
-    APValue MetaData(APValue::UninitStruct(), 0, 2);
-    MetaData.getStructField(0) = APValue(Null);
-    MetaData.getStructField(0) = APValue(Invalid);
-    Result.getStructField(0) = MetaData;
-  }
-}
-
-// Populates R with the reflected construct. Note that R may be null.
-//
-// TODO: This shares a lot of code with the reflected type specifiers.
-static bool DecodeMetaData(EvalInfo &Info, Reflection &R, 
-                           const Expr *MetaDataExpr,
-                           const APValue& MetaDataVal) {
-
-  // Check that the expression has the right type.
-  //
-  // FIXME: It would be nice if we could handle both meta_data and any
-  // of the *_info classes.
-  QualType T = MetaDataExpr->getType();
-  CXXRecordDecl *Class = T->getAsCXXRecordDecl();
-  if (Class->getIdentifier() != &Info.Ctx.Idents.get("meta_data")) {
-    Info.CCEDiag(MetaDataExpr, diag::note_reflection_not_metadata) << T;
-  }
-
-  assert(MetaDataVal.isStruct());
-
-  // Decode the reflected handle.
-  const APValue &HandleField = MetaDataVal.getStructField(1);
-  std::uintptr_t Handle = HandleField.getInt().getExtValue();
-  if (!Handle)
-    return true;
-  if (!Info.Ctx.GetReflection(Handle, R)) {
-    Info.CCEDiag(MetaDataExpr, diag::note_reflection_not_known);
-    return false;
-  }
-  return true;
+  Reflection R = const_cast<Type*>(T);
+  R.getConstantValue(Ctx, Result);
 }
 
 enum LinkageTrait {
@@ -5085,7 +5023,7 @@ enum LinkageTrait {
   LT_None,
 };
 
-static unsigned getLinkage(NamedDecl *D) {
+static unsigned getLinkage(const NamedDecl *D) {
   switch (D->getFormalLinkage()) {
   case NoLinkage: 
     return LT_None;
@@ -5104,7 +5042,7 @@ enum StorageTrait {
   ST_Static,
 };
 
-static unsigned getStorageDuration(VarDecl *D) {
+static unsigned getStorageDuration(const VarDecl *D) {
   switch (D->getStorageDuration()) {
   case SD_Automatic: 
     return ST_Automatic;
@@ -5117,20 +5055,21 @@ static unsigned getStorageDuration(VarDecl *D) {
   }
 }
 
-static unsigned getAccess(Decl *D) {
+// This aligns with usual access specifiers.
+static unsigned getAccess(const Decl *D) {
   return D->getAccess();
 }
 
-static unsigned GetTraits(EvalInfo &Info, Decl *D) {
+static unsigned GetTraits(EvalInfo &Info, const Decl *D) {
     switch (D->getKind()) {
     default:
       return 0;
     case Decl::Namespace: {
-      NamespaceDecl *NS = cast<NamespaceDecl>(D);
+      const NamespaceDecl *NS = cast<NamespaceDecl>(D);
       return NS->isInline();
     }
     case Decl::Var: {
-      VarDecl *Var = cast<VarDecl>(D);
+      const VarDecl *Var = cast<VarDecl>(D);
       if (Var->getDeclContext()->isRecord())
         return getStorageDuration(Var) |
                (getAccess(Var) << 2) |
@@ -5147,7 +5086,7 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
                (Var->isInline() << 7);
     }
     case Decl::Function: {
-      FunctionDecl *Fn = cast<FunctionDecl>(D);
+      const FunctionDecl *Fn = cast<FunctionDecl>(D);
       return getLinkage(Fn) |
              ((Fn->getStorageClass() == SC_Static) << 2) |
              ((Fn->getStorageClass() == SC_Extern) << 3) |
@@ -5158,7 +5097,7 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
 
     }
     case Decl::CXXRecord: {
-      CXXRecordDecl *Class = cast<CXXRecordDecl>(D);
+      const CXXRecordDecl *Class = cast<CXXRecordDecl>(D);
       bool IsComplete = Class->getCanonicalDecl()->isCompleteDefinition();
       unsigned Traits = getLinkage(Class) | 
                         (getAccess(Class) << 2) | 
@@ -5177,11 +5116,11 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
     case Decl::Field: {
       // Note that all of the other properties of apply only to static
       // member variables.
-      FieldDecl *Field = cast<FieldDecl>(D);
+      const FieldDecl *Field = cast<FieldDecl>(D);
       return (getAccess(Field) << 2) | (Field->isMutable() << 5);
     }
     case Decl::CXXMethod: {
-      CXXMethodDecl *Method = cast<CXXMethodDecl>(D);
+      const CXXMethodDecl *Method = cast<CXXMethodDecl>(D);
       return getAccess(Method) |
              Method->isStatic() << 2 |
              Method->isConstexpr() << 3 |
@@ -5194,7 +5133,7 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
              Method->isInlined() << 10;
     }
     case Decl::CXXConstructor: {
-      CXXConstructorDecl *Ctor = cast<CXXConstructorDecl>(D);
+      const CXXConstructorDecl *Ctor = cast<CXXConstructorDecl>(D);
       return getAccess(Ctor) |
              Ctor->isExplicit() << 2 |
              Ctor->isConstexpr() << 3 |
@@ -5204,7 +5143,7 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
              Ctor->isInlined() << 7;
     }
     case Decl::CXXDestructor: {
-      CXXDestructorDecl *Dtor = cast<CXXDestructorDecl>(D);
+      const CXXDestructorDecl *Dtor = cast<CXXDestructorDecl>(D);
       return getAccess(Dtor) |
              Dtor->isVirtual() << 3 |
              Dtor->isPure() << 4 |
@@ -5216,7 +5155,7 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
              Dtor->isInlined() << 10;
     }
     case Decl::CXXConversion: {
-      CXXConversionDecl *Conv = cast<CXXConversionDecl>(D);
+      const CXXConversionDecl *Conv = cast<CXXConversionDecl>(D);
       return getAccess(Conv) |
              Conv->isExplicit() << 2 |
              Conv->isConstexpr() << 3 |
@@ -5229,7 +5168,7 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
              Conv->isInlined() << 10;
     }
     case Decl::Enum: {
-      EnumDecl *Enum = cast<EnumDecl>(D);
+      const EnumDecl *Enum = cast<EnumDecl>(D);
       return getLinkage(Enum) | 
              getAccess(Enum) << 2 | 
              Enum->isComplete() << 4 | 
@@ -5237,11 +5176,11 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
       return 0;
     }
     case Decl::EnumConstant: {
-      EnumConstantDecl *Const = cast<EnumConstantDecl>(D);
+      const EnumConstantDecl *Const = cast<EnumConstantDecl>(D);
       return getLinkage(Const) | getAccess(Const) << 2;
     }
     case Decl::AccessSpec: {
-      AccessSpecDecl *Spec = cast<AccessSpecDecl>(D);
+      const AccessSpecDecl *Spec = cast<AccessSpecDecl>(D);
       return getAccess(Spec);
     }
   }
@@ -5250,10 +5189,10 @@ static unsigned GetTraits(EvalInfo &Info, Decl *D) {
 
 static bool MakeTraits(EvalInfo &Info, Reflection &R, 
                        const CXXReflectionTraitExpr *E, APSInt &Result) {
-  if (Decl *D = R.getAsDeclaration()) {
+  if (const Decl *D = R.getAsDeclaration()) {
     Result = Info.Ctx.MakeIntValue(GetTraits(Info, D), Info.Ctx.UnsignedIntTy);
     return true;
-  } else if (Type *T = R.getAsType()) {
+  } else if (const Type *T = R.getAsType()) {
     // T->dump();
     // Result = APValue(Info.Ctx.MakeIntValue(0, Info.Ctx.UnsignedIntTy));
     // return true;
@@ -5272,12 +5211,17 @@ static bool isStringLiteralType(QualType T) {
   return T->isCharType() && T.isConstQualified();
 }
 
+template<typename T>
+static T* MaybeGetAsDecl(Reflection R) {
+  return dyn_cast_or_null<T>(const_cast<Decl*>(R.getAsDeclaration()));
+}
+
 // Reflect the value of a manifest constant.
 static bool SetReflectedValue(EvalInfo &Info, Reflection R, 
                               const CXXReflectionTraitExpr *E,
                               const APValue &Ref) {
   const Expr* E0 = E->getArg(0);
-  ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration());
+  ValueDecl *VD = MaybeGetAsDecl<ValueDecl>(R);
   if (!VD) {
     Info.CCEDiag(E0, diag::note_reflection_not_valued);
     return false;
@@ -5294,8 +5238,8 @@ static bool SetReflectedValue(EvalInfo &Info, Reflection R,
 
   // Build and evaluate a reference to the constant.
   SourceLocation Loc;
-  Expr *DR = new (Info.Ctx) DeclRefExpr(VD, false, T0, VK_RValue, Loc);
-  
+  Expr *DR = new (Info.Ctx) DeclRefExpr(const_cast<ValueDecl*>(VD), false, T0, 
+                                        VK_RValue, Loc);
   APValue Val;
   if (!Evaluate(Val, Info, DR))
     return false;
@@ -5316,7 +5260,7 @@ static bool SetReflectedAddress(EvalInfo &Info, Reflection R,
                                 const CXXReflectionTraitExpr *E,
                                 const APValue &Ref) {
   const Expr* E0 = E->getArg(0);
-  ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration());
+  ValueDecl *VD = MaybeGetAsDecl<ValueDecl>(R);
   if (!VD) {
     Info.CCEDiag(E0, diag::note_reflection_not_valued);
     return false;
@@ -5375,16 +5319,13 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
     llvm::errs() << NonQuote << '\n';
     return true;
   } else if (T->isRecordType()) {
-    Reflection R;
-    if (!DecodeMetaData(Info, R, E->getArg(0), Args[0]))
-      return false;
-
+    Reflection R = Args[0];
     if (R.isNull()) {
       llvm::errs() << "null construct\n";
-    } else if (Decl *D = R.getAsDeclaration()) {
+    } else if (const Decl *D = R.getAsDeclaration()) {
       D->print(llvm::errs());
       llvm::errs() << '\n';
-    } else if (Type *T = R.getAsType()) {
+    } else if (const Type *T = R.getAsType()) {
       QualType QT(T, 0);
       QT.print(llvm::errs(), Info.Ctx.getPrintingPolicy());
       llvm::errs() << '\n';
@@ -5398,6 +5339,14 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
   // FIXME: Provide a better diagnostic.
   Info.CCEDiag(E0, diag::note_invalid_subexpr_in_const_expr);
   return false;
+}
+
+static StringLiteral *
+MakeString(ASTContext& Ctx, StringRef Str, SourceLocation Loc) {
+  QualType StrTy = Ctx.getConstantArrayType(Ctx.CharTy.withConst(), 
+                                            llvm::APInt(32, Str.size() + 1), 
+                                            ArrayType::Normal, 0);
+  return StringLiteral::Create(Ctx, Str, StringLiteral::Ascii, false, StrTy, Loc);
 }
 
 template<typename Derived>
@@ -5422,10 +5371,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
     return DerivedSuccess(Zero, E);
   }
 
-  // Get the meta_info object for unpacking.
-  Reflection R;
-  if (!DecodeMetaData(Info, R, E->getArg(0), Args[0]))
-    return false;
+  Reflection R = Args[0];
 
   // Reject null operands here.
   if (R.isNull()) {
@@ -5440,7 +5386,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       return DerivedSuccess(APValue(Index), E);
     }
     case URT_ReflectContext: {
-      if (Decl *D = R.getAsDeclaration()) {
+      if (const Decl *D = R.getAsDeclaration()) {
         Decl *Owner = Decl::castFromDeclContext(D->getDeclContext());
         APValue Result;
         MakeReflection(Info.Ctx, Owner, Result);
@@ -5451,19 +5397,17 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
     }
 
     case URT_ReflectName: {
-      if (NamedDecl *ND = dyn_cast_or_null<NamedDecl>(R.getAsDeclaration())) {
+      if (const NamedDecl *ND = dyn_cast_or_null<NamedDecl>(R.getAsDeclaration())) {
         if (IdentifierInfo *II = ND->getIdentifier()) {
-          StringLiteral *Str = Info.Ctx.MakeReflectedString(II->getName(),
-                                                            E->getLocStart());
+          StringLiteral *Str = MakeString(Info.Ctx, II->getName(), E->getLocStart());
           APValue Val;
           if (!Evaluate(Val, Info, Str))
             return false;
           return DerivedSuccess(Val, E);
         }
-      } else if (Type *T = R.getAsType()) {
+      } else if (const Type *T = R.getAsType()) {
         QualType CanTy = Info.Ctx.getCanonicalType(QualType(T, 0));
-        StringLiteral *Str = Info.Ctx.MakeReflectedString(CanTy.getAsString(),
-                                                          E->getLocStart());
+        StringLiteral *Str = MakeString(Info.Ctx, CanTy.getAsString(), E->getLocStart());
           APValue Val;
           if (!Evaluate(Val, Info, Str))
             return false;
@@ -5473,7 +5417,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       return false;
     }
     case URT_ReflectType: {
-      if (ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration())) {
+      if (const ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration())) {
         QualType CanTy = Info.Ctx.getCanonicalType(VD->getType());
         APValue Result;
         MakeReflection(Info.Ctx, CanTy.getTypePtr(), Result);
@@ -5501,13 +5445,13 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       return DerivedSuccess(APValue(Result), E);
     }
     case URT_ReflectFirstMember: {
-      if (Decl *D = R.getAsDeclaration()) {
-        DeclContext *DC;
-        if (TranslationUnitDecl *TU = dyn_cast<TranslationUnitDecl>(D))
+      if (const Decl *D = R.getAsDeclaration()) {
+        const DeclContext *DC;
+        if (const TranslationUnitDecl *TU = dyn_cast<TranslationUnitDecl>(D))
           DC = TU;
-        else if (NamespaceDecl *NS = dyn_cast<NamespaceDecl>(D))
+        else if (const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(D))
           DC = NS;
-        else if (TagDecl *TD = dyn_cast<TagDecl>(D))
+        else if (const TagDecl *TD = dyn_cast<TagDecl>(D))
           DC = TD;
         else
           DC = nullptr;
@@ -5523,8 +5467,8 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       return false;
     }
     case URT_ReflectNextMember: {
-      if (Decl *D = R.getAsDeclaration()) {
-        Decl *Next = D->getNextDeclInContext();
+      if (const Decl *D = R.getAsDeclaration()) {
+        const Decl *Next = D->getNextDeclInContext();
         APValue Result;
         MakeReflection(Info.Ctx, Next, Result);
         return DerivedSuccess(Result, E);

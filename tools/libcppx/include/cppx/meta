@@ -3,33 +3,26 @@
 #ifndef CPPX_META
 #define CPPX_META
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
 
-namespace std
-{
+namespace cppx {
+namespace meta {
+inline namespace v1 {
 
-template<std::size_t I, typename T>
-struct variant_alternative_t;  
+/// The result type of the object operator. This is (effectively) a variant
+/// whose members are the remaining _object 
+enum class object : std::intptr_t { };
 
-};
 
-namespace cppx
-{
-namespace meta
-{
-inline namespace v1
-{
+// TODO: Keep this in sync with the compiler. The corresponding enumeration
+// is in ExprConstant.cpp.
+enum object_kind {
+  null_construct = 0,
 
-using reflection_t = std::uintptr_t;
-
-// TODO: Keep this in sync with the compiler.
-enum construct_kind {
-  any_construct = -1, // The static index of meta_info.
-
-  null_construct = 0, // Never a static index.
-
+  // Declarations
   translation_unit,
   namespace_decl,
   variable_decl,
@@ -46,6 +39,7 @@ enum construct_kind {
   enumerator_decl,
   access_spec,
 
+  // Types
   void_type,
   character_type,
   integral_type,
@@ -55,6 +49,115 @@ enum construct_kind {
   pointer_type,
   array_type,
 };
+
+/// Returns the kind (discriminator) of the meta object.
+immediate object_kind index(object x) {
+    return (object_kind)__reflect_index(x); 
+}
+
+// -------------------------------------------------------------------------- //
+// Namespaces
+
+/// Represents a reflected namespace.
+enum class namespace_object : std::intptr_t { };
+
+
+struct namespace_traits {
+  immediate explicit namespace_traits(unsigned n)
+    : is_inline(n & 0x01)
+  { }
+  
+  unsigned is_inline : 1;
+};
+
+immediate namespace_traits traits(namespace_object ns) {
+  return namespace_traits(__reflect_traits(ns));
+}
+
+immediate bool is_inline(namespace_object ns) {
+  return traits(ns).is_inline;
+}
+
+// -------------------------------------------------------------------------- //
+// Variables
+
+/// Represents a reflected variable.
+enum class variable_object : std::intptr_t { };
+
+/// Stores information about variables.
+struct variable_traits {
+  immediate explicit variable_traits(unsigned n) 
+    : linkage(n & 0x03),
+      storage((n & 0x0c) >> 2),
+      is_static(n & 0x10),
+      is_extern(n & 0x20),
+      is_constexpr(n & 0x40),
+      is_inline(n & 0x80)
+  { }
+  
+  unsigned linkage : 2;
+  unsigned storage : 2;
+  bool is_static : 1;
+  bool is_extern : 1;
+  bool is_constexpr : 1;
+  bool is_inline : 1;
+};
+
+immediate variable_traits traits(variable_object var) {
+  return variable_traits(__reflect_traits(var));
+}
+
+immediate bool is_static(variable_object var) {
+  return traits(var).is_static;
+}
+
+immediate bool is_extern(variable_object var) {
+  return traits(var).is_extern;
+}
+
+immediate bool is_constexpr(variable_object var) {
+  return traits(var).is_constexpr;
+}
+
+immediate bool is_inline(variable_object var) {
+  return traits(var).is_inline;
+}
+
+// -------------------------------------------------------------------------- //
+// Functions
+
+/// Represents a reflected function.
+enum class function_object : std::intptr_t { };
+
+struct function_traits {
+
+};
+
+
+// -------------------------------------------------------------------------- //
+// Get
+
+namespace impl {
+
+// Implements the get<T> function for meta objects. Here, T must be one
+// of the meta::*_object classes.
+template<typename T> struct get_helper;
+
+} // namespace impl
+
+
+// Returns the object x cast as the request type.
+//
+// FIXME: Make the assert a compile-time thing.
+template<typename T>
+immediate auto get(object x) {
+  assert(impl::get_helper<T>::index == index(x));
+  return impl::get_helper<T>::get(x);
+}
+
+
+// -------------------------------------------------------------------------- //
+// Traits
 
 enum linkage_kind {
   external_linkage,
@@ -74,6 +177,34 @@ enum access_kind {
   private_access,
   no_access,
 };
+
+
+// -------------------------------------------------------------------------- //
+// Specializations of get
+
+namespace impl {
+  template<>
+  struct get_helper<namespace_object> {
+    static constexpr object_kind index = namespace_decl;
+    
+    static immediate namespace_object get(object x) {
+      return (namespace_object)x;
+    }
+  };
+
+  template<>
+  struct get_helper<variable_object> {
+    static constexpr object_kind index = variable_decl;
+    
+    static immediate variable_object get(object x) {
+      return (variable_object)x;
+    }
+  };
+} // namespace impl
+
+
+
+#if 0
 
 // WARNING: Do not modify the layout of this class or its private constructors
 // unless you also plan to modify the compiler. In other words, do not touch.
@@ -2257,6 +2388,7 @@ struct compiler_type {
   }
 } compiler;
 
+#endif
 
 } // inline namespace v1
 } // namespace meta

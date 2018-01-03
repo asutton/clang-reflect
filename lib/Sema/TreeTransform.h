@@ -7082,14 +7082,14 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
   Reflection R;
-  if (Decl *D = E->getReflectedDeclaration()) {
-    Decl *NewDecl = TransformDecl(D->getLocation(), D);
-    R = Reflection::ReflectDeclaration(NewDecl);
-  } else if (Type *T = E->getReflectedType()) {
+  if (const Decl *D = E->getReflectedDeclaration()) {
+    Decl *NewDecl = TransformDecl(D->getLocation(), const_cast<Decl*>(D));
+    R = Reflection(NewDecl);
+  } else if (const Type *T = E->getReflectedType()) {
     QualType NewType = TransformType(QualType(T, 0));
-    R = Reflection::ReflectType(const_cast<Type*>(NewType.getTypePtr()));
+    R = Reflection(NewType.getTypePtr());
   }
-  return RebuildCXXReflectExpr(E->getLocStart(), 
+  return RebuildCXXReflectExpr(E->getLocStart(),
                                R.getKind(), 
                                const_cast<void*>(R.getOpaquePointer()),
                                E->getLocEnd());

@@ -12,19 +12,35 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/Reflection.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/ASTContext.h"
 using namespace clang;
 
-// FIXME: The resulting structure must match *exactly* the `meta_data`
-// class in cppx::meta. If not, bad things will happen.
-APValue Reflection::getMetaData(ASTContext& Ctx) const {
-  llvm::APSInt Category = Ctx.MakeIntValue(getKind(), Ctx.UnsignedIntTy);
-  llvm::APSInt Handle = Ctx.MakeIntValue(reinterpret_cast<std::uintptr_t>(Ptr), 
-                                         Ctx.getUIntPtrType());
+// We need at least 64 bits of pointer value internally. This is also the
+// "natural" upper limit of easily working with APSInts.
+static_assert(sizeof(std::intptr_t) >= sizeof(std::uint64_t), "");
 
-  APValue Result(APValue::UninitStruct(), 0, 2);
-  Result.getStructField(0) = APValue(Category);
-  Result.getStructField(1) = APValue(Handle);
-  return Result;
+// Anything that can be directly encoded in the pointer value must have at
+// least 8 bits of alignment. We need extra bits to encode the AST kind.
+static_assert(alignof(Decl) >= 8, "");
+static_assert(alignof(Type) >= 8, "");
+static_assert(alignof(Stmt) >= 8, "");
+static_assert(alignof(CXXBaseSpecifier) >= 8, "");
+
+APValue Reflection::getConstantValue(ASTContext& Ctx) const {
+  APValue V;
+  getConstantValue(Ctx, V);
+  return V;
 }
 
+void Reflection::getConstantValue(ASTContext& Ctx, APValue& Value) const {
+  std::intptr_t N = (std::intptr_t)Ptr | Kind;
+  Value = APValue(Ctx.MakeIntValue(N, Ctx.getIntPtrType()));
+}
+
+void Reflection::putConstantValue(const APValue& Value) {
+  assert(Value.isInt() && "Expected an integer value");
+  std::intptr_t N = Value.getInt().getExtValue();
+  Ptr = reinterpret_cast<void*>(N & ~0x03);
+  Kind = static_cast<ReflectionKind>(N & 0x03);
+}
