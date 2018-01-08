@@ -5094,7 +5094,6 @@ static unsigned GetTraits(EvalInfo &Info, const Decl *D) {
              (Fn->isDefined() << 5) |
              (Fn->isInlined() << 6) |
              (Fn->isDeleted() << 7);
-
     }
     case Decl::CXXRecord: {
       const CXXRecordDecl *Class = cast<CXXRecordDecl>(D);

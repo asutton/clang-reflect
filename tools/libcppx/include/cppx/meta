@@ -221,19 +221,74 @@ immediate bool is_inline(variable_info var) {
   return traits(var).is_inline;
 }
 
-#if 0
 
 // -------------------------------------------------------------------------- //
 // Functions
 
-/// Represents a reflected function.
-enum class function_object : std::intptr_t { };
-
 struct function_traits {
-
+  immediate explicit function_traits(unsigned n) 
+    : linkage(n), 
+      is_static(n >> 2),
+      is_extern(n >> 3),
+      is_constexpr(n >> 4),
+      is_defined(n >> 5),
+      is_inline(n >> 6), 
+      is_deleted(n >> 7)
+  { }
+  
+  unsigned linkage : 2;
+  unsigned is_static : 1;
+  unsigned is_extern : 1;
+  unsigned is_constexpr : 1;
+  unsigned is_defined : 1;
+  unsigned is_inline : 1;
+  unsigned is_deleted : 1;
 };
 
+immediate function_traits traits(function_info fn) {
+  return function_traits(__reflect_traits(fn));
+}
 
+immediate bool has_linkage(function_info fn) {
+  // FIXME: Can you actually declare a function whose name has no linkage?
+  return traits(fn).linkage != no_linkage;
+}
+
+immediate bool has_external_linkage(function_info fn) {
+  return traits(fn).linkage == external_linkage;
+}
+
+immediate bool has_internal_linkage(function_info fn) {
+  return traits(fn).linkage == internal_linkage;
+}
+
+immediate bool is_static(function_info fn) {
+  return traits(fn).is_static;
+}
+
+immediate bool is_extern(function_info fn) {
+  return traits(fn).is_extern;
+}
+
+immediate bool is_constexpr(function_info fn) {
+  return traits(fn).is_constexpr;
+}
+
+immediate bool is_defined(function_info fn) {
+  return traits(fn).is_defined;
+}
+
+immediate bool is_inline(function_info fn) {
+  assert(is_defined(fn));
+  return traits(fn).is_inline;
+}
+
+immediate bool is_deleted(function_info fn) {
+  assert(is_defined(fn));
+  return traits(fn).is_deleted;
+}
+
+#if 0
 // -------------------------------------------------------------------------- //
 // Get
 
@@ -870,25 +925,6 @@ struct function_info {
 
   static constexpr construct_kind construct = function_decl;
 
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : linkage(n & 0x03), 
-        is_static(n & 0x04),
-        is_extern(n & 0x08),
-        is_constexpr(n & 0x10),
-        is_defined(n & 0x20),
-        is_inline(n & 0x40), 
-        is_deleted(n & 0x80)
-    { }
-    
-    unsigned linkage : 2;
-    bool is_static : 1;
-    bool is_extern : 1;
-    bool is_constexpr : 1;
-    bool is_defined : 1;
-    bool is_inline : 1;
-    bool is_deleted : 1;
-  };
 
   immediate function_info() = default;
 
