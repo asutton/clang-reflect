@@ -12,14 +12,39 @@ namespace cppx {
 namespace meta {
 inline namespace v1 {
 
-/// The result type of the object operator. This is (effectively) a variant
-/// whose members are the remaining _object 
-enum class object : std::intptr_t { };
+// The most general kind of reflection. Could be any of the following:
+enum class reflection_info : std::intptr_t { };
 
+// Declarations
+
+enum class translation_unit_info : std::intptr_t { };
+enum class namespace_info : std::intptr_t { };
+enum class variable_info : std::intptr_t { };
+enum class function_info : std::intptr_t { };
+enum class parameter_info : std::intptr_t { };
+enum class class_info : std::intptr_t { };
+enum class union_info : std::intptr_t { };
+enum class data_member_info : std::intptr_t { };
+enum class member_function_info : std::intptr_t { };
+enum class enum_info : std::intptr_t { };
+enum class enumerator_info : std::intptr_t { };
+enum class access_specifier_info : std::intptr_t { };
+enum class static_assert_info : std::intptr_t { };
+
+// Types
+
+enum class void_type_info { };
+enum class character_type_info { };
+enum class integral_type_info { };
+enum class floating_point_type_info { };
+enum class pointer_type_info { };
+enum class reference_type_info { };
+enum class array_type_info { };
+enum class function_type_info { };
 
 // TODO: Keep this in sync with the compiler. The corresponding enumeration
 // is in ExprConstant.cpp.
-enum object_kind {
+enum reflection_kind {
   null_construct = 0,
 
   // Declarations
@@ -30,11 +55,8 @@ enum object_kind {
   parameter_decl,
   class_decl,
   union_decl,
-  member_variable_decl,
+  data_member_decl,
   member_function_decl,
-  constructor_decl,
-  destructor_decl,
-  conversion_decl,
   enum_decl,
   enumerator_decl,
   access_spec,
@@ -50,78 +72,156 @@ enum object_kind {
   array_type,
 };
 
+// Kinds of linkage.
+//
+// FIXME: Add module linkage?
+enum linkage_kind {
+  external_linkage,
+  internal_linkage,
+  no_linkage,
+};
+
+// Kinds of (detectable) storage duration.
+enum storage_kind {
+  automatic_storage,
+  thread_storage,
+  static_storage,
+};
+
+// Kinds of access.
+enum access_kind {
+  public_access,
+  protected_access,
+  private_access,
+  no_access,
+};
+
+
+
+namespace detail {
+
+template<typename T> struct is_reflection : std::false_type { };
+
+template<> struct is_reflection<reflection_info> : std::true_type { };
+
+template<> struct is_reflection<translation_unit_info> : std::true_type { };
+template<> struct is_reflection<namespace_info> : std::true_type { };
+template<> struct is_reflection<variable_info> : std::true_type { };
+template<> struct is_reflection<function_info> : std::true_type { };
+template<> struct is_reflection<parameter_info> : std::true_type { };
+template<> struct is_reflection<class_info> : std::true_type { };
+template<> struct is_reflection<union_info> : std::true_type { };
+template<> struct is_reflection<data_member_info> : std::true_type { };
+template<> struct is_reflection<member_function_info> : std::true_type { };
+template<> struct is_reflection<enum_info> : std::true_type { };
+template<> struct is_reflection<enumerator_info> : std::true_type { };
+template<> struct is_reflection<access_specifier_info> : std::true_type { };
+
+template<> struct is_reflection<void_type_info> : std::true_type { };
+template<> struct is_reflection<character_type_info> : std::true_type { };
+template<> struct is_reflection<floating_point_type_info> : std::true_type { };
+template<> struct is_reflection<pointer_type_info> : std::true_type { };
+template<> struct is_reflection<reference_type_info> : std::true_type { };
+template<> struct is_reflection<array_type_info> : std::true_type { };
+template<> struct is_reflection<function_type_info> : std::true_type { };
+
+template<typename T>
+constexpr bool is_reflection_v = is_reflection<T>::value;
+
+} // namespace detail
+
 /// Returns the kind (discriminator) of the meta object.
-immediate object_kind index(object x) {
-    return (object_kind)__reflect_index(x); 
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate reflection_kind kind(T x) {
+    return (reflection_kind)__reflect_index(x); 
 }
 
 // -------------------------------------------------------------------------- //
 // Namespaces
 
-/// Represents a reflected namespace.
-enum class namespace_object : std::intptr_t { };
-
-
 struct namespace_traits {
   immediate explicit namespace_traits(unsigned n)
-    : is_inline(n & 0x01)
+    : is_inline(n)
   { }
   
   unsigned is_inline : 1;
 };
 
-immediate namespace_traits traits(namespace_object ns) {
+immediate namespace_traits traits(namespace_info ns) {
   return namespace_traits(__reflect_traits(ns));
 }
 
-immediate bool is_inline(namespace_object ns) {
+immediate bool is_inline(namespace_info ns) {
   return traits(ns).is_inline;
 }
 
 // -------------------------------------------------------------------------- //
 // Variables
 
-/// Represents a reflected variable.
-enum class variable_object : std::intptr_t { };
-
-/// Stores information about variables.
+/// Stores information about (non-member) variables.
 struct variable_traits {
   immediate explicit variable_traits(unsigned n) 
-    : linkage(n & 0x03),
-      storage((n & 0x0c) >> 2),
-      is_static(n & 0x10),
-      is_extern(n & 0x20),
-      is_constexpr(n & 0x40),
-      is_inline(n & 0x80)
+    : linkage(n),
+      storage(n >> 2),
+      is_static(n >> 4),
+      is_extern(n >> 5),
+      is_inline(n >> 6),
+      is_constexpr(n >> 7)
   { }
   
   unsigned linkage : 2;
   unsigned storage : 2;
-  bool is_static : 1;
-  bool is_extern : 1;
-  bool is_constexpr : 1;
-  bool is_inline : 1;
+  unsigned is_static : 1;
+  unsigned is_extern : 1;
+  unsigned is_inline : 1;
+  unsigned is_constexpr : 1;
 };
 
-immediate variable_traits traits(variable_object var) {
+immediate variable_traits traits(variable_info var) {
   return variable_traits(__reflect_traits(var));
 }
 
-immediate bool is_static(variable_object var) {
+immediate bool has_linkage(variable_info var) {
+  return traits(var).linkage != no_linkage;
+}
+
+immediate bool has_external_linkage(variable_info var) {
+  return traits(var).linkage == external_linkage;
+}
+
+immediate bool has_internal_linkage(variable_info var) {
+  return traits(var).linkage == internal_linkage;
+}
+
+immediate bool has_automatic_storage(variable_info var) {
+  return traits(var).storage == automatic_storage;
+}
+
+immediate bool has_static_storage(variable_info var) {
+  return traits(var).storage == static_storage;
+}
+
+immediate bool has_thread_storage(variable_info var) {
+  return traits(var).storage == thread_storage;
+}
+
+immediate bool is_static(variable_info var) {
   return traits(var).is_static;
 }
 
-immediate bool is_extern(variable_object var) {
+immediate bool is_extern(variable_info var) {
   return traits(var).is_extern;
 }
 
-immediate bool is_constexpr(variable_object var) {
+immediate bool is_constexpr(variable_info var) {
   return traits(var).is_constexpr;
 }
 
-immediate bool is_inline(variable_object var) {
+immediate bool is_inline(variable_info var) {
   return traits(var).is_inline;
 }
+
+#if 0
 
 // -------------------------------------------------------------------------- //
 // Functions
@@ -159,25 +259,6 @@ immediate auto get(object x) {
 // -------------------------------------------------------------------------- //
 // Traits
 
-enum linkage_kind {
-  external_linkage,
-  internal_linkage,
-  no_linkage,
-};
-
-enum storage_kind {
-  automatic_storage,
-  thread_local_storage,
-  static_storage,
-};
-
-enum access_kind {
-  public_access,
-  protected_access,
-  private_access,
-  no_access,
-};
-
 
 // -------------------------------------------------------------------------- //
 // Specializations of get
@@ -202,7 +283,7 @@ namespace impl {
   };
 } // namespace impl
 
-
+#endif
 
 #if 0
 

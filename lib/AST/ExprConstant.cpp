@@ -5070,20 +5070,20 @@ static unsigned GetTraits(EvalInfo &Info, const Decl *D) {
     }
     case Decl::Var: {
       const VarDecl *Var = cast<VarDecl>(D);
-      if (Var->getDeclContext()->isRecord())
+      if (Var->isStaticDataMember())
         return getStorageDuration(Var) |
                (getAccess(Var) << 2) |
                (true << 4) |
                (false << 5) |
-               (Var->isConstexpr() << 6) |
-               (Var->isInline() << 7);
+               (Var->isInline() << 6) |
+               (Var->isConstexpr() << 7);
       else
         return getLinkage(Var) | 
                (getStorageDuration(Var) << 2) |
                ((Var->getStorageClass() == SC_Static) << 4) |
                ((Var->getStorageClass() == SC_Extern) << 5) |
-               (Var->isConstexpr() << 6) |
-               (Var->isInline() << 7);
+               (Var->isInline() << 6) |
+               (Var->isConstexpr() << 7);
     }
     case Decl::Function: {
       const FunctionDecl *Fn = cast<FunctionDecl>(D);
