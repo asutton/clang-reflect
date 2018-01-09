@@ -213,37 +213,34 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc,
   ReflectionKind REK = (ReflectionKind)Kind;
   Reflection R = Reflection::FromKindAndPtr(REK, Entity);
 
-  bool IsTypeDependent = false;
   bool IsValueDependent = false;
   if (const Type* T = R.getAsType()) {
     // A type reflection is dependent if reflected T is dependent.
-    IsTypeDependent = T->isDependentType();
+    IsValueDependent = T->isDependentType();
   } else if (const Decl *D = R.getAsDeclaration()) {
-    // A declaration reflection is type or value dependent if an id-expression 
+    // A declaration reflection is value dependent if an id-expression 
     // referring to that declaration is type or value dependent. Reflections
     // of non-value declarations (e.g., namespaces) are never dependent.
     if (const ValueDecl *VD = dyn_cast<ValueDecl>(D)) {
       // Build a fake id-expression in order to determine dependence. 
       Expr *E = new (Context) DeclRefExpr(const_cast<ValueDecl*>(VD), false, 
                                           VD->getType(), VK_RValue, KWLoc);
-      IsTypeDependent = E->isTypeDependent();
-      IsValueDependent = E->isValueDependent();
+      IsValueDependent = E->isTypeDependent() || E->isValueDependent();
     } 
   }
-  bool IsInstantiationDependent = IsTypeDependent || IsValueDependent;
 
   // If the reflected declaration is in some way dependent, the reflection
   // is type dependent.
-  if (IsInstantiationDependent)
+  if (IsValueDependent)
     return new (Context) CXXReflectExpr(KWLoc, Context.DependentTy, R, 
                                         LPLoc, RPLoc, VK_RValue, 
-                                        IsTypeDependent, 
+                                        false, 
                                         IsValueDependent,
-                                        IsInstantiationDependent,
+                                        IsValueDependent,
                                         /*containsUnexpandedPacks=*/false);
 
-  // Lookup the type reflection.
-  QualType Ty = GetInfoType(*this, KWLoc, R);
+  // The type of reflexpr is meta::object.
+  QualType Ty = LookupMetaDecl(*this, "object", KWLoc);
   if (Ty.isNull())
     return ExprError();
 
@@ -289,34 +286,18 @@ static bool CheckValueTraitOperands(Sema &SemaRef, ArrayRef<Expr *> Args,
 // Check that the argument has the right type. Ignore references and
 // cv-qualifiers on the expression.
 static bool CheckReflectionOperand(Sema &SemaRef, Expr *E) {
+  // Get the type of the expression.
   QualType Source = E->getType();
   if (Source->isReferenceType()) 
-    Source = Source->getPointeeType();
+    Source = Source->getPointeeType();  
   Source = Source.getUnqualifiedType();
 
-  // The main operand must be an enumeration...
-  if (!Source->isEnumeralType()) {
+  // FIXME: We should cache meta::object and simply compare against that.
+  if (Source != LookupMetaDecl(SemaRef, "object", E->getExprLoc())) {
     SemaRef.Diag(E->getLocStart(), diag::err_reflection_trait_wrong_type) 
         << Source;
     return false;
   }
-
-  // ... owned by cppx::meta.
-  TagDecl *TD = Source->getAsTagDecl();
-  DeclContext *DC = TD->getDeclContext();
-  if (NamespaceDecl *NS = dyn_cast<NamespaceDecl>(DC)) {
-    // Adjust for inline namespaces.
-    if (NS->isInline())
-      DC = NS->getDeclContext();
-  }
-  if (DC != SemaRef.getCppxMetaNamespace(E->getExprLoc())) {
-    SemaRef.Diag(E->getLocStart(), diag::err_reflection_trait_wrong_type) 
-        << Source;
-    return false;
-  }
-
-  // FIXME: This admits false positives. We should really test that
-  // the Source type is one of the meta::*_info types. 
 
   return true;
 }
@@ -325,10 +306,10 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                          ReflectionTrait Trait,
                                          ArrayRef<Expr *> Args,
                                          SourceLocation RParenLoc) {
-  QualType ObjectTy = LookupMetaDecl(*this, "construct_info", TraitLoc);
+  QualType ObjectTy = LookupMetaDecl(*this, "object", TraitLoc);
   if (ObjectTy.isNull())
     return ExprError();
-  QualType KindTy = LookupMetaDecl(*this, "construct_kind", TraitLoc);
+  QualType KindTy = LookupMetaDecl(*this, "object_kind", TraitLoc);
   if (KindTy.isNull())
     return ExprError();
 
@@ -362,31 +343,29 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
     case URT_ReflectIndex: // meta::object_kind
       ResultTy = KindTy;
       break;
-    case URT_ReflectContext: // meta::object
+    
+    case URT_ReflectContext: 
+    case URT_ReflectHome: 
+    case URT_ReflectNext: 
+    case URT_ReflectType: // meta::object
       ResultTy = ObjectTy;
       break;
+    
     case URT_ReflectName: // const char*
       ResultTy = Context.getPointerType(Context.CharTy.withConst());
       break;
-    case URT_ReflectType: // meta::object_kind
-      ResultTy = ObjectTy;
-      break;
+
     case BRT_ReflectAddress:
     case BRT_ReflectValue: // int (always 0)
       // These accept an address as a 2nd argument and assign to that
       // that value.
       ResultTy = Context.IntTy;
       break;
+
     case URT_ReflectTraits: // unsigned
       ResultTy = Context.UnsignedIntTy;
       break;
-    case URT_ReflectFirstMember:
-    case URT_ReflectNextMember: // meta;:object
-      // NOTE: The result type is implementation defined. Because decls are
-      // linked into lists, we can simply return their reflections and build
-      // iterators in the library.
-      ResultTy = ObjectTy;
-      break;
+
     case URT_ReflectPrint: // int (always 0)
       // Returns 0.
       ResultTy = Context.IntTy;

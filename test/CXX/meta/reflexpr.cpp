@@ -44,11 +44,10 @@ namespace N {
 int main(int argc, char* argv[]) {
   
   // Variables
-  static_assert(std::is_same_v<decltype(reflexpr(x1)), meta::variable_info>);
 
   // int x1 -- global
   {
-    constexpr auto r = reflexpr(x1);
+    constexpr meta::object r = reflexpr(x1);
     static_assert(kind(r) == meta::variable_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(has_static_storage(r) == true);
@@ -60,7 +59,7 @@ int main(int argc, char* argv[]) {
 
   // static int x2 -- global
   {
-    constexpr auto r = reflexpr(x2);
+    constexpr meta::object r = reflexpr(x2);
     static_assert(kind(r) == meta::variable_decl);
     static_assert(has_internal_linkage(r) == true);
     static_assert(has_static_storage(r) == true);
@@ -71,11 +70,10 @@ int main(int argc, char* argv[]) {
   }
 
   // Functions
-  static_assert(std::is_same_v<decltype(reflexpr(f1)), meta::function_info>);
 
   // void f1() { }
   {
-    constexpr auto r = reflexpr(f1);
+    constexpr meta::object r = reflexpr(f1);
     static_assert(kind(r) == meta::function_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(is_static(r) == false);
@@ -88,7 +86,7 @@ int main(int argc, char* argv[]) {
 
   // void f2();
   {
-    constexpr auto r = reflexpr(f2);
+    constexpr meta::object r = reflexpr(f2);
     static_assert(kind(r) == meta::function_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(is_static(r) == false);
@@ -99,7 +97,7 @@ int main(int argc, char* argv[]) {
 
   // static inline void f3() { }
   {
-    constexpr auto r = reflexpr(f3);
+    constexpr meta::object r = reflexpr(f3);
     static_assert(kind(r) == meta::function_decl);
     static_assert(has_internal_linkage(r) == true);
     static_assert(is_static(r) == true);
@@ -112,7 +110,7 @@ int main(int argc, char* argv[]) {
 
   // constexpr int f4() { return 0; }
   {
-    constexpr auto r = reflexpr(f4);
+    constexpr meta::object r = reflexpr(f4);
     static_assert(kind(r) == meta::function_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(is_static(r) == false);
@@ -125,7 +123,7 @@ int main(int argc, char* argv[]) {
 
   // void f5(int) = delete;
   {
-    constexpr auto r = reflexpr(f5);
+    constexpr meta::object r = reflexpr(f5);
     static_assert(kind(r) == meta::function_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(is_static(r) == false);
@@ -138,39 +136,36 @@ int main(int argc, char* argv[]) {
 
   // Namespaces
   
-  static_assert(std::is_same_v<decltype(reflexpr(N)), meta::namespace_info>);
-  
   // namespace N
   {
-    constexpr auto r = reflexpr(N);
+    constexpr meta::object r = reflexpr(N);
     static_assert(kind(r) == meta::namespace_decl);
     static_assert(is_inline(r) == false);
   }
 
   // inline namespace N::M
   {
-    constexpr auto r = reflexpr(N::M);
+    constexpr meta::object r = reflexpr(N::M);
     static_assert(kind(r) == meta::namespace_decl);
     static_assert(is_inline(r) == true);
   }
 
   // Classes
 
-  static_assert(std::is_same_v<decltype(reflexpr(C1)), meta::class_info>);
-
   // class C1 { };
   {
-    constexpr auto r = reflexpr(C1);
+    constexpr meta::object r = reflexpr(C1);
     static_assert(kind(r) == meta::class_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(has_access(r) == false);
     static_assert(is_class(r) == true);
+    static_assert(is_declared_class(r) == true);
     static_assert(is_complete(r) == true);
   }
 
   // class C2;
   {
-    constexpr auto r = reflexpr(C2);
+    constexpr meta::object r = reflexpr(C2);
     static_assert(kind(r) == meta::class_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(has_access(r) == false);
@@ -180,14 +175,14 @@ int main(int argc, char* argv[]) {
 
   // struct S1 { ... };
   {
-    constexpr auto r = reflexpr(S1);
+    constexpr meta::object r = reflexpr(S1);
     static_assert(kind(r) == meta::class_decl);
-    static_assert(is_struct(r) == true);
+    static_assert(is_declared_struct(r) == true);
   }
 
   // class S1::C { ... };
   {
-    constexpr auto r = reflexpr(S1::C);
+    constexpr meta::object r = reflexpr(S1::C);
     static_assert(kind(r) == meta::class_decl);
     static_assert(has_access(r) == true);
     static_assert(is_public(r) == true);
@@ -195,18 +190,16 @@ int main(int argc, char* argv[]) {
   
   // union U1 { ... };
   {
-    constexpr auto r = reflexpr(U1);
+    constexpr meta::object r = reflexpr(U1);
     static_assert(kind(r) == meta::class_decl);
     static_assert(is_union(r) == true);
   }
 
   // Data members
 
-  static_assert(std::is_same_v<decltype(reflexpr(S1::x1)), meta::data_member_info>);
-
   // int S1::x1;
   {
-    constexpr auto r = reflexpr(S1::x1);
+    constexpr meta::object r = reflexpr(S1::x1);
     static_assert(kind(r) == meta::data_member_decl);
     static_assert(is_public(r) == true);
     static_assert(is_static(r) == false);
@@ -218,7 +211,7 @@ int main(int argc, char* argv[]) {
 
   // mutable int S1::x2;
   {
-    constexpr auto r = reflexpr(S1::x2);
+    constexpr meta::object r = reflexpr(S1::x2);
     static_assert(kind(r) == meta::data_member_decl);
     static_assert(is_static(r) == false);
     static_assert(is_mutable(r) == true);
@@ -226,7 +219,7 @@ int main(int argc, char* argv[]) {
 
   // static int S1::x3;
   {
-    constexpr auto r = reflexpr(S1::x3);
+    constexpr meta::object r = reflexpr(S1::x3);
     static_assert(kind(r) == meta::data_member_decl);
     static_assert(is_static(r) == true);
     static_assert(is_mutable(r) == false);
@@ -234,7 +227,7 @@ int main(int argc, char* argv[]) {
 
   // static constexpr int S1::x4;
   {
-    constexpr auto r = reflexpr(S1::x4);
+    constexpr meta::object r = reflexpr(S1::x4);
     static_assert(kind(r) == meta::data_member_decl);
     static_assert(is_static(r) == true);
     static_assert(is_inline(r) == true);
@@ -243,7 +236,7 @@ int main(int argc, char* argv[]) {
 
   // int S1::x5 : 4;
   {
-    constexpr auto r = reflexpr(S1::x5);
+    constexpr meta::object r = reflexpr(S1::x5);
     static_assert(kind(r) == meta::data_member_decl);
     static_assert(is_static(r) == false);
     static_assert(is_bitfield(r) == true);
@@ -251,11 +244,9 @@ int main(int argc, char* argv[]) {
 
   // Member functions
 
-  static_assert(std::is_same_v<decltype(reflexpr(S1::f1)), meta::member_function_info>);
-
   // int S1::f1() { }
   {
-    constexpr auto r = reflexpr(S1::f1);
+    constexpr meta::object r = reflexpr(S1::f1);
     static_assert(kind(r) == meta::member_function_decl);
     static_assert(is_public(r) == true);
     static_assert(is_normal(r) == true);
@@ -274,11 +265,9 @@ int main(int argc, char* argv[]) {
 
   // Enums
 
-  static_assert(std::is_same_v<decltype(reflexpr(E1)), meta::enum_info>);
-
   // enum E1 { ... }
   {
-    constexpr auto r = reflexpr(E1);
+    constexpr meta::object r = reflexpr(E1);
     static_assert(kind(r) == meta::enum_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(has_access(r) == false);
@@ -287,7 +276,7 @@ int main(int argc, char* argv[]) {
 
   // enum class E2 { ... }
   {
-    constexpr auto r = reflexpr(E2);
+    constexpr meta::object r = reflexpr(E2);
     static_assert(kind(r) == meta::enum_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(has_access(r) == false);
@@ -296,7 +285,7 @@ int main(int argc, char* argv[]) {
 
   // enum class : int;
   {
-    constexpr auto r = reflexpr(E3);
+    constexpr meta::object r = reflexpr(E3);
     static_assert(kind(r) == meta::enum_decl);
     static_assert(has_external_linkage(r) == true);
     static_assert(has_access(r) == false);
@@ -305,20 +294,17 @@ int main(int argc, char* argv[]) {
 
   // Enumerators
 
-  static_assert(std::is_same_v<decltype(reflexpr(X)), meta::enumerator_info>);
-
   // enum E1 { X }
   {
-    constexpr auto r = reflexpr(X);
+    constexpr meta::object r = reflexpr(X);
     static_assert(kind(r) == meta::enumerator_decl);
     static_assert(has_access(r) == false);
   }
 
   // enum class E2 { X }
   {
-    constexpr auto r = reflexpr(E2::X);
+    constexpr meta::object r = reflexpr(E2::X);
     static_assert(kind(r) == meta::enumerator_decl);
     static_assert(has_access(r) == false);
   }
-
 }

@@ -107,13 +107,13 @@ namespace clang {
   enum ReflectionTrait {
     URT_ReflectIndex,
     URT_ReflectContext,
+    URT_ReflectHome,
+    URT_ReflectNext,
     URT_ReflectName,
     URT_ReflectType,
     BRT_ReflectAddress,
     BRT_ReflectValue,
     URT_ReflectTraits,
-    URT_ReflectFirstMember,
-    URT_ReflectNextMember,
     URT_ReflectPrint,
   };
 }

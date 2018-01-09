@@ -4906,9 +4906,9 @@ enum ConstructKind {
   CK_ClassDecl,
   CK_DataMemberDecl,
   CK_MemberFunctionDecl,
+  CK_AccessSpec,
   CK_EnumDecl,
   CK_EnumeratorDecl,
-  CK_AccessSpec,
 
   CK_VoidType,
   CK_CharacterType,
@@ -5436,6 +5436,10 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       return false;
     }
 
+    case URT_ReflectHome:
+    case URT_ReflectNext:
+      llvm_unreachable("not implemented");
+
     case URT_ReflectName: {
       if (const NamedDecl *ND = dyn_cast_or_null<NamedDecl>(R.getAsDeclaration())) {
         if (IdentifierInfo *II = ND->getIdentifier()) {
@@ -5456,6 +5460,7 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       CCEDiag(E->getArg(0), diag::note_reflection_not_named) << 0;
       return false;
     }
+
     case URT_ReflectType: {
       if (const ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration())) {
         QualType CanTy = Info.Ctx.getCanonicalType(VD->getType());
@@ -5466,57 +5471,28 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       CCEDiag(E->getArg(0), diag::note_reflection_not_typed) << 0;
       return false;
     }
+
     case BRT_ReflectAddress: {
       if (!SetReflectedAddress(Info, R, E, Args[1]))
         return false;
       APValue Zero(Info.Ctx.MakeIntValue(0, Info.Ctx.IntTy));
       return DerivedSuccess(Zero, E);
     }
+
     case BRT_ReflectValue: {
       if (!SetReflectedValue(Info, R, E, Args[1]))
         return false;
       APValue Zero(Info.Ctx.MakeIntValue(0, Info.Ctx.IntTy));
       return DerivedSuccess(Zero, E);
     }
+
     case URT_ReflectTraits: {
       APSInt Result;
       if (!MakeTraits(Info, R, E, Result))
         return false;
       return DerivedSuccess(APValue(Result), E);
     }
-    case URT_ReflectFirstMember: {
-      if (const Decl *D = R.getAsDeclaration()) {
-        const DeclContext *DC;
-        if (const TranslationUnitDecl *TU = dyn_cast<TranslationUnitDecl>(D))
-          DC = TU;
-        else if (const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(D))
-          DC = NS;
-        else if (const TagDecl *TD = dyn_cast<TagDecl>(D))
-          DC = TD;
-        else
-          DC = nullptr;
-        if (DC) {
-          auto Iter = DC->decls_begin();
-          Decl *First = (Iter == DC->decls_end() ? nullptr : *Iter);
-          APValue Result;
-          MakeReflection(Info.Ctx, First, Result);
-          return DerivedSuccess(Result, E);
-        }
-      }
-      CCEDiag(E->getArg(0), diag::note_reflection_no_members) << 1;
-      return false;
-    }
-    case URT_ReflectNextMember: {
-      if (const Decl *D = R.getAsDeclaration()) {
-        const Decl *Next = D->getNextDeclInContext();
-        APValue Result;
-        MakeReflection(Info.Ctx, Next, Result);
-        return DerivedSuccess(Result, E);
-      }
-      CCEDiag(E->getArg(0), diag::note_reflection_not_declared) << 0;
-      return false;
-    }
-    
+
     case URT_ReflectPrint:
       llvm_unreachable("Should not be here");
   }

@@ -12,37 +12,26 @@ namespace cppx {
 namespace meta {
 inline namespace v1 {
 
-// The most general kind of reflection. Could be any of the following:
-enum class construct_info : std::intptr_t { };
+// FIXME: Find a better way of forcing constexpr errors.
 
-// Declarations
+struct compile_time_error { };
 
-enum class translation_unit_info : std::intptr_t { };
-enum class namespace_info : std::intptr_t { };
-enum class variable_info : std::intptr_t { };
-enum class function_info : std::intptr_t { };
-enum class parameter_info : std::intptr_t { };
-enum class class_info : std::intptr_t { };
-enum class data_member_info : std::intptr_t { };
-enum class member_function_info : std::intptr_t { };
-enum class access_specifier_info : std::intptr_t { };
-enum class enum_info : std::intptr_t { };
-enum class enumerator_info : std::intptr_t { };
+// Like assert, but always runs and guarantees non-compilation.
+immediate void require(bool b) {
+  if (!b)
+    throw compile_time_error();
+}
 
-// Types
-
-enum class void_type_info { };
-enum class character_type_info { };
-enum class integral_type_info { };
-enum class floating_point_type_info { };
-enum class pointer_type_info { };
-enum class reference_type_info { };
-enum class array_type_info { };
-enum class function_type_info { };
+// The most general kind of reflection.
+//
+// FIXME: This should be an enum class, but those don't convert to bool. Most
+// likely, this should be a special type that prevents all forms of 
+// construction but value construction.
+enum object : std::intptr_t { };
 
 // TODO: Keep this in sync with the compiler. The corresponding enumeration
 // is in ExprConstant.cpp.
-enum construct_kind {
+enum object_kind {
   null_construct = 0,
 
   // Declarations
@@ -108,196 +97,120 @@ enum memun_kind {
   conversion,
 };
 
-namespace detail {
-
-template<typename T> struct is_reflection : std::false_type { };
-
-template<> struct is_reflection<construct_info> : std::true_type { };
-
-template<> struct is_reflection<translation_unit_info> : std::true_type { };
-template<> struct is_reflection<namespace_info> : std::true_type { };
-template<> struct is_reflection<variable_info> : std::true_type { };
-template<> struct is_reflection<function_info> : std::true_type { };
-template<> struct is_reflection<parameter_info> : std::true_type { };
-template<> struct is_reflection<class_info> : std::true_type { };
-template<> struct is_reflection<data_member_info> : std::true_type { };
-template<> struct is_reflection<member_function_info> : std::true_type { };
-template<> struct is_reflection<enum_info> : std::true_type { };
-template<> struct is_reflection<enumerator_info> : std::true_type { };
-template<> struct is_reflection<access_specifier_info> : std::true_type { };
-
-template<> struct is_reflection<void_type_info> : std::true_type { };
-template<> struct is_reflection<character_type_info> : std::true_type { };
-template<> struct is_reflection<floating_point_type_info> : std::true_type { };
-template<> struct is_reflection<pointer_type_info> : std::true_type { };
-template<> struct is_reflection<reference_type_info> : std::true_type { };
-template<> struct is_reflection<array_type_info> : std::true_type { };
-template<> struct is_reflection<function_type_info> : std::true_type { };
-
-template<typename T>
-constexpr bool is_reflection_v = is_reflection<T>::value;
-
-template<typename T1, typename T2>
-constexpr bool are_reflections_v = is_reflection_v<T1> && is_reflection_v<T2>;
-
-} // namespace detail
-
-// Equality comparison
-
-template<typename T1, typename T2, typename = std::enable_if_t<detail::are_reflections_v<T1, T2>>>
-immediate bool operator==(T1 a, T2 b) {
-  return (construct_info)a == (construct_info)b;
-}
-
-template<typename T1, typename T2, typename = std::enable_if_t<detail::are_reflections_v<T1, T2>>>
-immediate bool operator!=(T1 a, T2 b) {
-  return (construct_info)a != (construct_info)b;
-}
-
 // Kind and kind testing
 
 /// Returns the kind (discriminator) of the meta object.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate construct_kind kind(T x) {
-    return (construct_kind)__reflect_index(x); 
+immediate object_kind kind(object x) {
+    return (object_kind)__reflect_index(x); 
 }
 
 /// True if x is a null reflection.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_null(T x) {
+immediate bool is_null(object x) {
   return kind(x) == null_construct;
 }
 
 /// True if x reflects a declaration.
 ///
-/// TODO: Make sure this stays in agreement with construct_kind.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_declaration(T x) {
-  construct_kind k = kind(x);
+/// TODO: Make sure this stays in agreement with object_kind.
+immediate bool is_declaration(object x) {
+  object_kind k = kind(x);
   return translation_unit <= k && k <= enumerator_decl;
 }
 
 /// True if x reflects a fundamental or non-user-defined type.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_type(T x) {
-  construct_kind k = kind(x);
+immediate bool is_type(object x) {
+  object_kind k = kind(x);
   return void_type <= k && k <= array_type;
 }
 
 /// True if x reflects a translation unit.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_translation_unit(T x) {
-    return kind(x) == translation_unit;
+immediate bool is_translation_unit(object x) {
+  return kind(x) == translation_unit;
 }
 
 /// True if x reflects a namespace.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_namespace(T x) {
-    return kind(x) == namespace_decl;
+immediate bool is_namespace(object x) {
+  return kind(x) == namespace_decl;
 }
 
 /// True if x reflects a variable.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_variable(T x) {
-    return kind(x) == variable_decl;
+immediate bool is_variable(object x) {
+  return kind(x) == variable_decl;
 }
 
 /// True if x reflects a function.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_function(T x) {
-    return kind(x) == function_decl;
+immediate bool is_function(object x) {
+  return kind(x) == function_decl;
 }
 
 /// True if x reflects a parameter.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_parameter(T x) {
-    return kind(x) == parameter_decl;
+immediate bool is_parameter(object x) {
+  return kind(x) == parameter_decl;
 }
 
 /// True if x reflects a class.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_class(T x) {
-    return kind(x) == class_decl;
+immediate bool is_class(object x) {
+  return kind(x) == class_decl;
 }
 
 /// True if x reflects a data member.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_data_member(T x) {
-    return kind(x) == data_member_decl;
+immediate bool is_data_member(object x) {
+  return kind(x) == data_member_decl;
 }
 
 /// True if x reflects a member function.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_member_function(T x) {
-    return kind(x) == member_function_decl;
+immediate bool is_member_function(object x) {
+  return kind(x) == member_function_decl;
 }
 
 /// True if x reflects an access specifier.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_access_specifier(T x) {
-    return kind(x) == access_spec;
+immediate bool is_access_specifier(object x) {
+  return kind(x) == access_spec;
 }
 
 /// True if x reflections an enum.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_enum(T x) {
-    return kind(x) == enum_decl;
+immediate bool is_enum(object x) {
+  return kind(x) == enum_decl;
 }
 
 /// True if x reflects an enumerator.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate bool is_enumerator(T x) {
-    return kind(x) == enumerator_decl;
+immediate bool is_enumerator(object x) {
+  return kind(x) == enumerator_decl;
 }
 
-// Context
+// Traversal
 
 // Returns the lexical context of the declaration.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate construct_info parent(T x) {
+immediate object parent(object x) {
   return __reflect_context(x);
 }
 
 // Returns the home context of the declaration.
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate construct_info home(T x) {
-  // return __reflect_home(x);
-  return {};
+immediate object home(object x) {
+  return __reflect_home(x);
 }
 
-// Context
-
-// Returns the next
-template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate construct_info next(T x) {
-  // return __reflect_next(x);
-  return {};
+// Returns the subsequent declaration (or null).
+immediate object next(object x) {
+  return __reflect_next(x);
 }
-
 
 // -------------------------------------------------------------------------- //
-// Namespaces
+// Declaration traits
 
 struct namespace_traits {
   immediate explicit namespace_traits(unsigned n)
     : is_inline(n)
   { }
+
+  immediate explicit namespace_traits(object x)
+    : namespace_traits(__reflect_traits(x))
+  { require(is_namespace(x)); }
   
   unsigned is_inline : 1;
 };
 
-immediate namespace_traits traits(namespace_info ns) {
-  return namespace_traits(__reflect_traits(ns));
-}
-
-immediate bool is_inline(namespace_info ns) {
-  return traits(ns).is_inline;
-}
-
-// -------------------------------------------------------------------------- //
-// Variables
-
-/// Stores information about (non-member) variables.
+// FIXME: A variable can be declared but not defined.
 struct variable_traits {
   immediate explicit variable_traits(unsigned n) 
     : linkage(n),
@@ -307,6 +220,10 @@ struct variable_traits {
       is_inline(n >> 6),
       is_constexpr(n >> 7)
   { }
+
+  immediate explicit variable_traits(object x)
+    : variable_traits(__reflect_traits(x))
+  { require(is_variable(x)); }
   
   unsigned linkage : 2;
   unsigned storage : 2;
@@ -315,54 +232,6 @@ struct variable_traits {
   unsigned is_inline : 1;
   unsigned is_constexpr : 1;
 };
-
-immediate variable_traits traits(variable_info var) {
-  return variable_traits(__reflect_traits(var));
-}
-
-immediate bool has_linkage(variable_info var) {
-  return traits(var).linkage != no_linkage;
-}
-
-immediate bool has_external_linkage(variable_info var) {
-  return traits(var).linkage == external_linkage;
-}
-
-immediate bool has_internal_linkage(variable_info var) {
-  return traits(var).linkage == internal_linkage;
-}
-
-immediate bool has_automatic_storage(variable_info var) {
-  return traits(var).storage == automatic_storage;
-}
-
-immediate bool has_static_storage(variable_info var) {
-  return traits(var).storage == static_storage;
-}
-
-immediate bool has_thread_storage(variable_info var) {
-  return traits(var).storage == thread_storage;
-}
-
-immediate bool is_static(variable_info var) {
-  return traits(var).is_static;
-}
-
-immediate bool is_extern(variable_info var) {
-  return traits(var).is_extern;
-}
-
-immediate bool is_constexpr(variable_info var) {
-  return traits(var).is_constexpr;
-}
-
-immediate bool is_inline(variable_info var) {
-  return traits(var).is_inline;
-}
-
-
-// -------------------------------------------------------------------------- //
-// Functions
 
 struct function_traits {
   immediate explicit function_traits(unsigned n) 
@@ -374,6 +243,10 @@ struct function_traits {
       is_inline(n >> 6), 
       is_deleted(n >> 7)
   { }
+
+  immediate explicit function_traits(object x)
+    : function_traits(__reflect_traits(x))
+  { require(is_function(x)); }
   
   unsigned linkage : 2;
   unsigned is_static : 1;
@@ -384,52 +257,6 @@ struct function_traits {
   unsigned is_deleted : 1;
 };
 
-immediate function_traits traits(function_info fn) {
-  return function_traits(__reflect_traits(fn));
-}
-
-immediate bool has_linkage(function_info fn) {
-  // Can you actually declare a function whose name has no linkage?
-  return traits(fn).linkage != no_linkage;
-}
-
-immediate bool has_external_linkage(function_info fn) {
-  return traits(fn).linkage == external_linkage;
-}
-
-immediate bool has_internal_linkage(function_info fn) {
-  return traits(fn).linkage == internal_linkage;
-}
-
-immediate bool is_static(function_info fn) {
-  return traits(fn).is_static;
-}
-
-immediate bool is_extern(function_info fn) {
-  return traits(fn).is_extern;
-}
-
-immediate bool is_constexpr(function_info fn) {
-  return traits(fn).is_constexpr;
-}
-
-immediate bool is_defined(function_info fn) {
-  return traits(fn).is_defined;
-}
-
-immediate bool is_inline(function_info fn) {
-  assert(is_defined(fn));
-  return traits(fn).is_inline;
-}
-
-immediate bool is_deleted(function_info fn) {
-  assert(is_defined(fn));
-  return traits(fn).is_deleted;
-}
-
-// -------------------------------------------------------------------------- //
-// Classes
-
 struct class_traits {
   immediate explicit class_traits(unsigned n) 
     : linkage(n),
@@ -438,6 +265,10 @@ struct class_traits {
       is_complete(n >> 6),
       is_injected(n >> 7)
   { }
+
+  immediate explicit class_traits(object x)
+    : class_traits(__reflect_traits(x))
+  { }
   
   unsigned linkage : 2;
   unsigned access : 2;
@@ -445,67 +276,6 @@ struct class_traits {
   unsigned is_complete : 1;
   unsigned is_injected : 1;
 };
-
-immediate class_traits traits(class_info c) {
-  return class_traits(__reflect_traits(c));
-}
-
-immediate bool has_linkage(class_info c) {
-  // Can you actually declare a class whose name has no linkage?
-  return traits(c).linkage != no_linkage;
-}
-
-immediate bool has_external_linkage(class_info c) {
-  return traits(c).linkage == external_linkage;
-}
-
-immediate bool has_internal_linkage(class_info c) {
-  return traits(c).linkage == internal_linkage;
-}
-
-immediate bool has_access(class_info c) {
-  return traits(c).access != no_access;
-}
-
-immediate bool is_public(class_info c) {
-  assert(has_access(c));
-  return traits(c).access == public_access;
-}
-
-immediate bool is_private(class_info c) {
-  assert(has_access(c));
-  return traits(c).access == private_access;
-}
-
-immediate bool is_protected(class_info c) {
-  assert(has_access(c));
-  return traits(c).access == protected_access;
-}
-
-immediate bool is_struct(class_info c) {
-  return traits(c).key == struct_key;
-}
-
-immediate bool is_class(class_info c) {
-  return traits(c).key == class_key;
-}
-
-immediate bool is_union(class_info c) {
-  return traits(c).key == union_key;
-}
-
-immediate bool is_complete(class_info c) {
-  return traits(c).is_complete;
-}
-
-// These do show up in reflected class definitions, so it's useful to know
-// when to skip them.
-immediate bool is_injected_class_name(class_info c) {
-  return traits(c).is_injected;
-}
-
-// -------------------------------------------------------------------------- //
-// Data members
 
 struct data_member_traits {
   immediate explicit data_member_traits(unsigned n) 
@@ -517,6 +287,10 @@ struct data_member_traits {
       is_constexpr(n >> 7),
       is_bitfield(n >> 8)
   { }
+
+  immediate explicit data_member_traits(object x)
+    : data_member_traits(__reflect_traits(x))
+  { require(is_data_member(x)); }
   
   unsigned storage : 2;
   unsigned access : 2;
@@ -526,58 +300,6 @@ struct data_member_traits {
   unsigned is_constexpr : 1;
   unsigned is_bitfield : 1;
 };
-
-immediate data_member_traits traits(data_member_info var) {
-  return data_member_traits(__reflect_traits(var));
-}
-
-immediate bool has_automatic_storage(data_member_info var) {
-  return traits(var).storage == automatic_storage;
-}
-
-immediate bool has_static_storage(data_member_info var) {
-  return traits(var).storage == static_storage;
-}
-
-immediate bool has_thread_storage(data_member_info var) {
-  return traits(var).storage == thread_storage;
-}
-
-immediate bool is_public(data_member_info var) {
-  return traits(var).access == public_access;
-}
-
-immediate bool is_private(data_member_info var) {
-  return traits(var).access == private_access;
-}
-
-immediate bool is_protected(data_member_info var) {
-  return traits(var).access == protected_access;
-}
-
-immediate bool is_static(data_member_info var) {
-  return traits(var).is_static;
-}
-
-immediate bool is_mutable(data_member_info var) {
-  return traits(var).is_mutable;
-}
-
-immediate bool is_inline(data_member_info var) {
-  return traits(var).is_inline;
-}
-
-immediate bool is_constexpr(data_member_info var) {
-  return traits(var).is_constexpr;
-}
-
-// TODO: Add an accessor for the bit width.
-immediate bool is_bitfield(data_member_info var) {
-  return traits(var).is_bitfield;
-}
-
-// -------------------------------------------------------------------------- //
-// Member functions
 
 struct member_function_traits {
   immediate explicit member_function_traits(unsigned n) 
@@ -596,6 +318,10 @@ struct member_function_traits {
       is_defaulted(n >> 14)
   { }
 
+  immediate explicit member_function_traits(object x)
+    : member_function_traits(__reflect_traits(x))
+  { require(is_member_function(x)); }
+
   unsigned access : 2;
   unsigned kind : 2;
   unsigned is_static : 1;
@@ -611,176 +337,33 @@ struct member_function_traits {
   unsigned is_defaulted : 1;
 };
 
-immediate member_function_traits traits(member_function_info fn) {
-  return member_function_traits(__reflect_traits(fn));
-}
-
-immediate bool is_public(member_function_info fn) {
-  return traits(fn).access == public_access;
-}
-
-immediate bool is_private(member_function_info fn) {
-  return traits(fn).access == private_access;
-}
-
-immediate bool is_protected(member_function_info fn) {
-  return traits(fn).access == protected_access;
-}
-
-immediate bool is_normal(member_function_info fn) {
-  return traits(fn).kind == normal;
-}
-
-immediate bool is_constructor(member_function_info fn) {
-  return traits(fn).kind == constructor;
-}
-
-immediate bool is_destructor(member_function_info fn) {
-  return traits(fn).kind == destructor;
-}
-
-immediate bool is_conversion(member_function_info fn) {
-  return traits(fn).kind == conversion;
-}
-
-immediate bool is_static(member_function_info fn) {
-  return traits(fn).is_static;
-}
-
-immediate bool is_constexpr(member_function_info fn) {
-  assert(!is_destructor(fn));
-  return traits(fn).is_constexpr;
-}
-
-immediate bool is_explicit(member_function_info fn) {
-  assert(is_constructor(fn) || is_conversion(fn));
-  return traits(fn).is_explicit;
-}
-
-immediate bool is_virtual(member_function_info fn) {
-  assert(!is_constructor(fn));
-  return traits(fn).is_virtual;
-}
-
-immediate bool is_pure_virtual(member_function_info fn) {
-  assert(!is_constructor(fn));
-  return traits(fn).is_pure;
-}
-
-immediate bool is_override(member_function_info fn) {
-  assert(!is_constructor(fn));
-  return traits(fn).is_override;
-}
-
-immediate bool is_final(member_function_info fn) {
-  assert(!is_constructor(fn));
-  return traits(fn).is_final;
-}
-
-immediate bool is_defined(member_function_info fn) {
-  return traits(fn).is_defined;
-}
-
-immediate bool is_inline(member_function_info fn) {
-  return traits(fn).is_inline;
-}
-
-immediate bool is_deleted(member_function_info fn) {
-  return traits(fn).is_deleted;
-}
-
-immediate bool is_defaulted(member_function_info fn) {
-  assert(is_constructor(fn) || is_destructor(fn));
-  return traits(fn).is_defaulted;
-}
-
-// -------------------------------------------------------------------------- //
-// Enumerations
-
 struct enum_traits {
   immediate explicit enum_traits(unsigned n) 
     : linkage(n),
       access(n >> 2),
       is_scoped(n >> 4)
   { }
+
+  immediate explicit enum_traits(object x)
+    : enum_traits(__reflect_traits(x))
+  { require(is_enum(x)); }
   
   unsigned linkage : 2;
   unsigned access : 2;
   unsigned is_scoped : 1;
 };
 
-immediate enum_traits traits(enum_info e) {
-  return enum_traits(__reflect_traits(e));
-}
-
-immediate bool has_linkage(enum_info e) {
-  return traits(e).linkage != no_linkage;
-}
-
-immediate bool has_external_linkage(enum_info e) {
-  return traits(e).linkage == external_linkage;
-}
-
-immediate bool has_internal_linkage(enum_info e) {
-  return traits(e).linkage == internal_linkage;
-}
-
-immediate bool has_access(enum_info e) {
-  return traits(e).access != no_access;
-}
-
-immediate bool is_public(enum_info e) {
-  assert(has_access(e));
-  return traits(e).access == public_access;
-}
-
-immediate bool is_private(enum_info e) {
-  assert(has_access(e));
-  return traits(e).access == private_access;
-}
-
-immediate bool is_protected(enum_info e) {
-  assert(has_access(e));
-  return traits(e).access == protected_access;
-}
-
-immediate bool is_scoped(enum_info e) {
-  return traits(e).is_scoped;
-}
-
-// -------------------------------------------------------------------------- //
-// Enumerators
-
 struct enumerator_traits {
   immediate explicit enumerator_traits(unsigned n) 
     : access(n)
   { }
+
+  immediate explicit enumerator_traits(object x)
+    : enumerator_traits(__reflect_traits(x))
+  { }
   
   unsigned access : 2;
 };
-
-immediate enumerator_traits traits(enumerator_info e) {
-  return enumerator_traits(__reflect_traits(e));
-}
-
-immediate bool has_access(enumerator_info e) {
-  return traits(e).access != no_access;
-}
-
-immediate bool is_public(enumerator_info e) {
-  assert(has_access(e));
-  return traits(e).access == public_access;
-}
-
-immediate bool is_private(enumerator_info e) {
-  assert(has_access(e));
-  return traits(e).access == private_access;
-}
-
-immediate bool is_protected(enumerator_info e) {
-  assert(has_access(e));
-  return traits(e).access == protected_access;
-}
 
 // -------------------------------------------------------------------------- //
 // Access specifiers
@@ -790,2251 +373,336 @@ struct access_traits {
     : access(n)
   { }
   
+  immediate explicit access_traits(object x)
+    : access_traits(__reflect_traits(x))
+  { }
+  
   unsigned access : 2;
 };
 
-immediate access_traits traits(access_specifier_info e) {
-  return access_traits(__reflect_traits(e));
-}
-
-immediate bool has_access(access_specifier_info e) {
-  return traits(e).access != no_access;
-}
-
-immediate bool is_public(access_specifier_info e) {
-  assert(has_access(e));
-  return traits(e).access == public_access;
-}
-
-immediate bool is_private(access_specifier_info e) {
-  assert(has_access(e));
-  return traits(e).access == private_access;
-}
-
-immediate bool is_protected(access_specifier_info e) {
-  assert(has_access(e));
-  return traits(e).access == protected_access;
-}
-
-
-#if 0
 // -------------------------------------------------------------------------- //
-// Get
+// General purpose queries
 
-namespace impl {
-
-// Implements the get<T> function for meta objects. Here, T must be one
-// of the meta::*_object classes.
-template<typename T> struct get_helper;
-
-} // namespace impl
-
-
-// Returns the object x cast as the request type.
-//
-// FIXME: Make the assert a compile-time thing.
-template<typename T>
-immediate auto get(object x) {
-  assert(impl::get_helper<T>::index == index(x));
-  return impl::get_helper<T>::get(x);
+immediate bool has_linkage(object x) {
+  switch (kind(x)) {
+  case namespace_decl:
+    return true;
+  case variable_decl:
+    return variable_traits(x).linkage != no_linkage;
+  case function_decl:
+    return function_traits(x).linkage != no_linkage;
+  case class_decl:
+    return class_traits(x).linkage != no_linkage;
+  case enum_decl:
+    return enum_traits(x).linkage != no_linkage;
+  default:
+    __builtin_unreachable();
+  }
 }
 
-
-// -------------------------------------------------------------------------- //
-// Traits
-
-
-// -------------------------------------------------------------------------- //
-// Specializations of get
-
-namespace impl {
-  template<>
-  struct get_helper<namespace_object> {
-    static constexpr object_kind index = namespace_decl;
-    
-    static immediate namespace_object get(object x) {
-      return (namespace_object)x;
-    }
-  };
-
-  template<>
-  struct get_helper<variable_object> {
-    static constexpr object_kind index = variable_decl;
-    
-    static immediate variable_object get(object x) {
-      return (variable_object)x;
-    }
-  };
-} // namespace impl
-
-#endif
-
-#if 0
-
-// WARNING: Do not modify the layout of this class or its private constructors
-// unless you also plan to modify the compiler. In other words, do not touch.
-struct meta_data
-{
-  immediate meta_data() 
-    : category(null_construct), handle() 
-  { }
-
-  /// Returns true when this is a null reference.
-  immediate bool null() const { return handle == 0; }
-  
-  /// FIXME: We can actually drop this member; the kind can be recovered from
-  /// the reflection cache.
-  unsigned category;
-
-  /// The handle to the reflected construct.
-  reflection_t handle;
-};
-
-immediate bool operator==(meta_data a, meta_data b) noexcept {
-  return a.handle == b.handle;
+immediate bool has_external_linkage(object x) {
+  switch (kind(x)) {
+    case namespace_decl:
+      return true;
+    case variable_decl:
+      return variable_traits(x).linkage == external_linkage;
+    case function_decl:
+      return function_traits(x).linkage == external_linkage;
+    case class_decl:
+      return class_traits(x).linkage == external_linkage;
+    case enum_decl:
+      return enum_traits(x).linkage == external_linkage;
+    default:
+      __builtin_unreachable();
+  }
 }
 
-immediate bool operator!=(meta_data a, meta_data b) noexcept {
-  return a.handle != b.handle;
+immediate bool has_internal_linkage(object x) {
+  switch (kind(x)) {
+    case namespace_decl:
+      return false;
+    case variable_decl:
+      return variable_traits(x).linkage == internal_linkage;
+    case function_decl:
+      return function_traits(x).linkage == internal_linkage;
+    case class_decl:
+      return class_traits(x).linkage == internal_linkage;
+    case enum_decl:
+      return enum_traits(x).linkage == internal_linkage;
+    default:
+      __builtin_unreachable();
+  }
 }
 
-
-// -------------------------------------------------------------------------- //
-// Meta info variant
-
-/// The primary interface to reflection. This models the read-only version of
-/// the concept inherent in std::variant.
-///
-/// \todo Make private members private.
-struct meta_info {
-  // private:
-  
-  meta_data data;
-
-  explicit immediate meta_info(meta_data md)
-    : data(md)
-  { }
-
-  static constexpr meta_data null = {};
-
-  //public:
-
-  static constexpr construct_kind construct = any_construct;
-
-  immediate meta_info() = default;
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate construct_kind index() const noexcept { 
-    return __reflect_index(data); 
-  }
-
-  /// This never throws, so is never exceptionless.
-  constexpr bool valueless_by_exception() const noexcept { 
-    return false; 
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept {
-    return !data.null(); 
-  }
-
-  immediate bool is_translation_unit() const noexcept {
-    return index() == translation_unit;
-  }
-  immediate bool is_namespace() const noexcept {
-    return index() == namespace_decl;
-  }
-  immediate bool is_variable() const noexcept {
-    return index() == variable_decl;
-  }
-  immediate bool is_function() const noexcept {
-    return index() == function_decl;
-  }
-  immediate bool is_parameter() const noexcept {
-    return index() == parameter_decl;
-  }
-  immediate bool is_class() const noexcept {
-    return index() == class_decl;
-  }
-  immediate bool is_union() const noexcept {
-    return index() == union_decl;
-  }
-  immediate bool is_member_variable() const noexcept {
-    return index() == member_variable_decl;
-  }
-  immediate bool is_member_function() const noexcept {
-    return index() == member_function_decl;
-  }
-  immediate bool is_constructor() const noexcept {
-    return index() == constructor_decl;
-  }
-  immediate bool is_destructor() const noexcept {
-    return index() == destructor_decl;
-  }
-  immediate bool is_conversion() const noexcept {
-    return index() == conversion_decl;
-  }
-  immediate bool is_enum() const noexcept {
-    return index() == enum_decl;
-  }
-  immediate bool is_enumerator() const noexcept {
-    return index() == enumerator_decl;
-  }
-  immediate bool is_access_specifier() const noexcept {
-    return index() == access_spec;
-  }
-
-  immediate bool is_void_type() const noexcept {
-    return index() == void_type;
-  }
-  immediate bool is_character_type() const noexcept {
-    return index() == character_type;
-  }
-  immediate bool is_integral_type() const noexcept {
-    return index() == integral_type;
-  }
-  immediate bool is_floating_point_type() const noexcept {
-    return index() == floating_point_type;
-  }
-  immediate bool is_reference_type() const noexcept {
-    return index() == reference_type;
-  }
-  immediate bool is_function_type() const noexcept {
-    return index() == function_type;
-  }
-  immediate bool is_pointer_type() const noexcept {
-    return index() == pointer_type;
-  }
-  immediate bool is_array_type() const noexcept {
-    return index() == array_type;
-  }
-
-  // Convenience functions
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-immediate bool operator==(meta_info a, meta_info b) noexcept {
-  return a.data == b.data;
+immediate bool has_automatic_storage(object x) {
+  switch (kind(x)) {
+    case variable_decl:
+      return variable_traits(x).storage == automatic_storage;
+    case data_member_decl:
+      return data_member_traits(x).storage == automatic_storage;
+    default:
+      __builtin_unreachable();
+  }  
 }
 
-immediate bool operator!=(meta_info a, meta_info b) noexcept {
-  return a.data != b.data;
+immediate bool has_static_storage(object x) {
+  switch (kind(x)) {
+    case variable_decl:
+      return variable_traits(x).storage == static_storage;
+    case data_member_decl:
+      return data_member_traits(x).storage == static_storage;
+    default:
+      __builtin_unreachable();
+  }  
 }
 
-// -------------------------------------------------------------------------- //
-// Iterators
-
-struct member_iterator
-{
-  using value_type = meta_info;
-  using reference = meta_info;
-  using pointer = void;
-  using difference_type = std::ptrdiff_t;
-  using iterator_category = std::forward_iterator_tag;
-
-  meta_info curr; // The current declaration.
-
-  immediate member_iterator() = default;
-
-  immediate member_iterator(meta_info mi)
-    : curr(__reflect_first_member(mi.data))
-  { }
-
-  immediate meta_info operator*() const noexcept {
-    return curr;
+immediate bool has_thread_storage(object x) {
+  switch (kind(x)) {
+    case variable_decl:
+      return variable_traits(x).storage == thread_storage;
+    case data_member_decl:
+      return data_member_traits(x).storage == thread_storage;
+    default:
+      __builtin_unreachable();
   }
-
-  immediate member_iterator& operator++() noexcept {
-    curr = __reflect_next_member(curr.data);
-    return *this;
-  }
-  immediate member_iterator operator++(int) noexcept {
-    member_iterator tmp = *this;
-    curr = __reflect_next_member(curr.data);
-    return tmp;
-  }
-
-  friend immediate bool operator==(member_iterator a, member_iterator b) noexcept {
-    return a.curr == b.curr;
-  }
-  friend immediate bool operator!=(member_iterator a, member_iterator b) noexcept {
-    return a.curr != b.curr;
-  }
-};
-
-struct member_range
-{
-  using iterator = member_iterator;
-
-  immediate member_range(meta_info mi)
-    : first(mi), limit()
-  { }
-
-  immediate iterator begin() const noexcept { 
-    return first; 
-  }
-  immediate iterator end() const noexcept { 
-    return limit; 
-  }
-
-  iterator first;
-  iterator limit;
-};
-
-/// Iterates over members of a particular kind.
-template<typename Info>
-struct specific_member_iterator
-{
-  using value_type = meta_info;
-  using reference = meta_info;
-  using pointer = void;
-  using difference_type = std::ptrdiff_t;
-  using iterator_category = std::forward_iterator_tag;
-
-  member_iterator iter; // The current iterator.
-
-  immediate specific_member_iterator() = default;
-
-  immediate specific_member_iterator(meta_info mi)
-    : iter(mi)
-  {
-    advance();
-  }
-
-  immediate meta_info operator*() const noexcept {
-    return *iter;
-  }
-
-  immediate specific_member_iterator& operator++() noexcept {
-    ++iter;
-    advance();
-    return *this;
-  }
-  immediate specific_member_iterator operator++(int) noexcept {
-    specific_member_iterator tmp = *this;
-    ++iter;
-    return tmp;
-  }
-
-  friend immediate bool 
-  operator==(specific_member_iterator a, specific_member_iterator b) noexcept {
-    return a.iter == b.iter;
-  }
-  friend immediate bool 
-  operator!=(specific_member_iterator a, specific_member_iterator b) noexcept {
-    return a.iter != b.iter;
-  }
-
-  immediate void advance() {
-    if (Info::construct != any_construct) {
-      while (*iter && (*iter).index() != Info::construct)
-        ++iter;
-    }
-  }
-};
-
-template<typename Info>
-struct specific_member_range
-{
-  using iterator = specific_member_iterator<Info>;
-
-  immediate specific_member_range(meta_info mi)
-    : first(mi), limit()
-  { }
-
-  immediate iterator begin() const noexcept { 
-    return first; 
-  }
-  immediate iterator end() const noexcept { 
-    return limit; 
-  }
-
-  iterator first;
-  iterator limit;
-};
-
-/// Iterates over members of a particular kind.
-template<typename Pred>
-struct filter_member_iterator
-{
-  using value_type = meta_info;
-  using reference = meta_info;
-  using pointer = void;
-  using difference_type = std::ptrdiff_t;
-  using iterator_category = std::forward_iterator_tag;
-
-  member_iterator iter; // The current iterator.
-  Pred pred; // The predicate
-
-  immediate filter_member_iterator(Pred p = {})
-    : iter(), pred(p)
-  { }
-  immediate filter_member_iterator(meta_info mi, Pred p = {})
-    : iter(mi), pred(p)
-  { advance(); }
-
-  immediate meta_info operator*() const noexcept {
-    return *iter;
-  }
-
-  immediate filter_member_iterator& operator++() noexcept {
-    ++iter;
-    advance();
-    return *this;
-  }
-  immediate filter_member_iterator operator++(int) noexcept {
-    filter_member_iterator tmp = *this;
-    ++iter;
-    return tmp;
-  }
-
-  friend immediate bool 
-  operator==(filter_member_iterator a, filter_member_iterator b) noexcept {
-    return a.iter == b.iter;
-  }
-  friend immediate bool 
-  operator!=(filter_member_iterator a, filter_member_iterator b) noexcept {
-    return a.iter != b.iter;
-  }
-
-  immediate void advance() {
-    while (*iter && !pred(*iter))
-      ++iter;
-  }
-};
-
-template<typename Pred>
-struct filter_member_range
-{
-  using iterator = filter_member_iterator<Pred>;
-
-  immediate filter_member_range(meta_info mi, Pred p = {})
-    : first(mi, p), limit(p)
-  { }
-
-  immediate iterator begin() const noexcept { 
-    return first; 
-  }
-  immediate iterator end() const noexcept { 
-    return limit; 
-  }
-
-  iterator first;
-  iterator limit;
-};
-
-
-// -------------------------------------------------------------------------- //
-// Declarations
-
-/// Compile-time information about a translation unit.
-struct translation_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = translation_unit;
-
-  immediate translation_info() = default;
-  
-  immediate translation_info(meta_info mi)
-    : data(mi.is_translation_unit() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate member_range members() const noexcept {
-    return {*this};
-  }
-};
-
-/// Compile-time information about a namespace.
-struct namespace_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = namespace_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : is_inline(n & 0x01) 
-    { }
-    
-    bool is_inline : 1;
-  };
-
-  immediate namespace_info() = default;
-  
-  immediate namespace_info(meta_info mi)
-    : data(mi.is_namespace() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate member_range members() const noexcept {
-    return {*this};
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate bool is_inline() const noexcept {
-    return traits().is_inline;
-  }
-};
-
-/// Compile-time information about a variable.
-struct variable_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = variable_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : linkage(n & 0x03),
-        storage((n & 0x0c) >> 2),
-        is_static(n & 0x10),
-        is_extern(n & 0x20),
-        is_constexpr(n & 0x40),
-        is_inline(n & 0x80)
-    { }
-    
-    unsigned linkage : 2;
-    unsigned storage : 2;
-    bool is_static : 1;
-    bool is_extern : 1;
-    bool is_constexpr : 1;
-    bool is_inline : 1;
-  };
-
-  immediate variable_info() = default;
-  
-  immediate variable_info(meta_info mi)
-    : data(mi.is_variable() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate linkage_kind linkage() const noexcept {
-    return linkage_kind(traits().linkage);
-  }
-
-  immediate bool has_linkage() const noexcept {
-    return linkage() != no_linkage;
-  }
-
-  immediate bool has_external_linkage() const noexcept {
-    return linkage() == external_linkage;
-  }
-
-  immediate bool has_internal_linkage() const noexcept {
-    return linkage() == internal_linkage;
-  }
-
-  immediate storage_kind storage_duration() const {
-    return storage_kind(traits().storage);
-  }
-
-  immediate bool has_static_storage() const noexcept {
-    return storage_duration() == static_storage;
-  }
-
-  immediate bool has_automatic_storage() const noexcept {
-    return storage_duration() == automatic_storage;
-  }
-
-  immediate bool has_thread_local_storage() const noexcept {
-    return storage_duration() == thread_local_storage;
-  }
-
-  immediate bool is_static() const noexcept {
-    return traits().is_static;
-  }
-
-  immediate bool is_extern() const noexcept {
-    return traits().is_extern;
-  }
-
-  immediate bool is_constexpr() const noexcept {
-    return traits().is_constexpr;
-  }
-
-  immediate bool is_inline() const noexcept {
-    return traits().is_inline;
-  }
-
-  template<typename T>
-  immediate T& get() const noexcept {
-    T* addr{};
-    (void)__reflect_address(data, addr);
-    return *addr;
-  }
-};
-
-/// Compile-time information about a function.
-struct function_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = function_decl;
-
-
-  immediate function_info() = default;
-
-  immediate function_info(meta_info mi)
-    : data(mi.is_function() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate linkage_kind linkage() const noexcept {
-    return linkage_kind(traits().linkage);
-  }
-
-  immediate bool has_linkage() const noexcept {
-    return linkage() != no_linkage;
-  }
-
-  immediate bool has_external_linkage() const noexcept {
-    return linkage() == external_linkage;
-  }
-
-  immediate bool has_internal_linkage() const noexcept {
-    return linkage() == internal_linkage;
-  }
-
-  immediate bool is_static() const noexcept {
-    return traits().is_static;
-  }
-
-  immediate bool is_extern() const noexcept {
-    return traits().is_extern;
-  }
-
-  immediate bool is_constexpr() const noexcept {
-    return traits().is_constexpr;
-  }
-
-  immediate bool is_defined() const noexcept {
-    return traits().is_defined;
-  }
-
-  immediate bool is_inline() const noexcept {
-    return traits().is_inline;
-  }
-
-  immediate bool is_deleted() const noexcept {
-    return traits().is_deleted;
-  }
-
-  template<typename T>
-  immediate T& get() const noexcept {
-    T* addr{};
-    (void)__reflect_address(data, addr);
-    return *addr;
-  }
-};
-
-/// Compile-time information about a parameter.
-struct parameter_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = parameter_decl;
-
-  immediate parameter_info() = default;
-
-  immediate parameter_info(meta_info mi)
-    : data(mi.is_parameter() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-};
-
-struct member_variable_info;
-struct member_function_info;
-struct constructor_info;
-struct destructor_info;
-struct conversion_info;
-
-struct is_member_variable_p
-{
-  immediate bool operator()(meta_info mi) const noexcept;
-};
-
-struct is_instance_variable_p
-{
-  immediate bool operator()(meta_info mi) const noexcept;
-};
-
-struct is_class_variable_p
-{
-  immediate bool operator()(meta_info mi) const noexcept;
-};
-
-struct is_member_function_p
-{
-  immediate bool operator()(meta_info mi) const noexcept;
-};
-
-struct is_instance_function_p
-{
-  immediate bool operator()(meta_info mi) const noexcept;
-};
-
-struct is_class_function_p
-{
-  immediate bool operator()(meta_info mi) const noexcept;
-};
-
-struct is_constructor_p
-{
-  immediate bool operator()(meta_info mi) const noexcept;
-};
-
-struct is_destructor_p
-{
-  immediate bool operator()(meta_info mi) const noexcept;
-};
-
-using memvar_range = filter_member_range<is_member_variable_p>;
-using instance_memvar_range = filter_member_range<is_instance_variable_p>;
-using class_memvar_range = filter_member_range<is_class_variable_p>;
-
-using memfun_range = filter_member_range<is_member_function_p>;
-using instance_memfun_range = filter_member_range<is_instance_function_p>;
-using constructor_range = filter_member_range<is_constructor_p>;
-using destructor_range = filter_member_range<is_destructor_p>;
-using class_memfun_range = filter_member_range<is_class_function_p>;
-
-
-/// Compile-time information about a class.
-struct class_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = class_decl;
-
-  /// FIXME: Add all computed traits.
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : linkage(n & 0x03),
-        access((n & 0x0c) >> 2),
-        is_complete(n & 0x10),
-        is_polymorphic(n & 0x020),
-        is_abstract(n & 0x40),
-        is_final(n & 0x80),
-        is_empty(n & 0x0100)
-    { }
-    
-    unsigned linkage : 2;
-    unsigned access : 2;
-    bool is_complete : 1;
-    bool is_polymorphic : 1;
-    bool is_abstract : 1;
-    bool is_final : 1;
-    bool is_empty : 1;
-  };
-
-  immediate class_info() = default;
-  
-  immediate class_info(meta_info mi)
-    : data(mi.is_class() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate member_range members() const noexcept {
-    return {*this};
-  }
-
-  immediate memvar_range all_member_variables() const noexcept;
-  immediate instance_memvar_range member_variables() const noexcept;
-  immediate class_memvar_range static_member_variables() const noexcept;
-  
-  immediate memfun_range all_member_functions() const noexcept;
-  immediate instance_memfun_range member_functions() const noexcept;
-  immediate constructor_range constructors() const noexcept;
-  immediate destructor_range destructors() const noexcept;
-  immediate class_memfun_range static_member_functions() const noexcept;
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate linkage_kind linkage() const noexcept {
-    return linkage_kind(traits().linkage);
-  }
-
-  immediate bool has_linkage() const noexcept {
-    return linkage() != no_linkage;
-  }
-
-  immediate bool has_external_linkage() const noexcept {
-    return linkage() == external_linkage;
-  }
-
-  immediate bool has_internal_linkage() const noexcept {
-    return linkage() == internal_linkage;
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  };
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-
-  immediate bool is_complete() const noexcept {
-    return traits().is_complete;
-  }
-
-  immediate bool is_polymorphic() const noexcept {
-    return traits().is_polymorphic;
-  }
-
-  immediate bool is_abstract() const noexcept {
-    return traits().is_abstract;
-  }
-
-  immediate bool is_final() const noexcept {
-    return traits().is_final;
-  }
-
-  immediate bool is_empty() const noexcept {
-    return traits().is_empty;
-  }
-};
-
-
-/// Compile-time information about a union.
-struct union_info {
-  meta_data data;
-
-  /// Denotes that this is a reflection.
-  static constexpr construct_kind construct = union_decl;
-
-  // FIXME: Add other computed properties.
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : linkage(n & 0x03),
-        access((n & 0x0c) >> 2),
-        is_complete(n & 0x10)
-    { }
-    
-    unsigned linkage : 2;
-    unsigned access : 2;
-    bool is_complete : 1;
-  };
-
-  immediate union_info() = default;
-  
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate union_info(meta_info mi)
-    : data(mi.is_union() ? mi.data :  mi.null)
-  { }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate member_range members() const noexcept {
-    return {*this};
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate linkage_kind linkage() const noexcept {
-    return linkage_kind(traits().linkage);
-  }
-
-  immediate bool has_linkage() const noexcept {
-    return linkage() != no_linkage;
-  }
-
-  immediate bool has_external_linkage() const noexcept {
-    return linkage() == external_linkage;
-  }
-
-  immediate bool has_internal_linkage() const noexcept {
-    return linkage() == internal_linkage;
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  };
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-
-  immediate bool is_complete() const noexcept {
-    return traits().is_complete;
-  }
-};
-
-/// Compile-time information about a member variable.
-struct member_variable_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = member_variable_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : storage(n & 0x03), 
-        access((n & 0x0c) >> 2),
-        is_static(n & 0x10),
-        is_mutable(n & 0x20),
-        is_constexpr(n & 0x40),
-        is_inline(n & 0x80)
-    { }
-    
-    unsigned storage : 2;
-    unsigned access : 2;
-    bool is_static : 1;
-    bool is_mutable : 1;
-    bool is_constexpr : 1;
-    bool is_inline : 1;
-  };
-
-  immediate member_variable_info() = default;
-
-  immediate member_variable_info(meta_info mi)
-    : data(mi.is_member_variable() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate storage_kind storage_duration() const noexcept {
-    return storage_kind(traits().storage);
-  };
-
-  immediate bool has_static_storage() const noexcept {
-    return storage_duration() == static_storage;
-  }
-
-  immediate bool has_automatic_storage() const noexcept {
-    return storage_duration() == automatic_storage;
-  }
-
-  immediate bool has_thread_local_storage() const noexcept {
-    return storage_duration() == thread_local_storage;
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  };
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-
-  immediate bool is_static() const noexcept {
-    return traits().is_static;
-  }
-
-  immediate bool is_mutable() const noexcept {
-    return traits().is_mutable;
-  }
-
-  immediate bool is_constexpr() const noexcept {
-    return traits().is_constexpr;
-  }
-
-  immediate bool is_inline() const noexcept {
-    return traits().is_inline;
-  }
-};
-
-/// Compile-time information about a member function.
-struct member_function_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = member_function_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : access(n & 0x3),
-        is_static(n & 0x04),
-        is_constexpr(n & 0x08),
-        is_virtual(n & 0x10),
-        is_pure(n & 0x20),
-        is_override(n & 0x40),
-        is_final(n & 0x80),
-        is_defined(n & 0x0100),
-        is_deleted(n & 0x0200),
-        is_inline(n & 0x0400)
-    { }
-
-    unsigned access : 2;
-    bool is_static : 1;
-    bool is_constexpr : 1;
-    bool is_virtual : 1;
-    bool is_pure : 1;
-    bool is_override : 1;
-    bool is_final : 1;
-    bool is_defined : 1;
-    bool is_deleted : 1;
-    bool is_inline : 1;
-  };
-
-  immediate member_function_info() = default;
-
-  immediate member_function_info(meta_info mi)
-    : data(mi.is_member_function() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  };
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-
-  immediate bool is_static() const noexcept {
-    return traits().is_static;
-  }
-
-  immediate bool is_constexpr() const {
-    return traits().is_constexpr;
-  }
-
-  immediate bool is_virtual() const {
-    return traits().is_virtual;
-  }
-
-  immediate bool is_pure_virtual() const {
-    return traits().is_pure;
-  }
-
-  immediate bool is_override() const {
-    return traits().is_override;
-  }
-
-  immediate bool is_final() const {
-    return traits().is_final;
-  }
-
-  immediate bool is_defined() const {
-    return traits().is_defined;
-  }
-
-  immediate bool is_deleted() const {
-    return traits().is_deleted;
-  }
-
-  immediate bool is_inline() const {
-    return traits().is_inline;
-  }
-};
-
-/// Compile-time information about a constructor.
-struct constructor_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = constructor_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : access(n & 0x03),
-        is_explicit(n & 0x40),
-        is_constexpr(n & 0x80),
-        is_defined(n & 0x0100),
-        is_deleted(n & 0x0200),
-        is_defaulted(n & 0x0400),
-        is_inline(n & 0x0800)
-    { }
-
-    unsigned access : 2;
-    bool is_explicit : 1;
-    bool is_constexpr : 1;
-    bool is_defined : 1;
-    bool is_deleted : 1;
-    bool is_defaulted : 1;
-    bool is_inline : 1;
-  };
-
-  immediate constructor_info() = default;
-
-  immediate constructor_info(meta_info mi)
-    : data(mi.is_constructor() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  };
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-
-  immediate bool is_explicit() const {
-    return traits().is_explicit;
-  }
-
-  immediate bool is_constexpr() const {
-    return traits().is_constexpr;
-  }
-
-  immediate bool is_defined() const {
-    return traits().is_defined;
-  }
-
-  immediate bool is_deleted() const {
-    return traits().is_deleted;
-  }
-
-  immediate bool is_defaulted() const {
-    return traits().is_defaulted;
-  }
-
-  immediate bool is_inline() const {
-    return traits().is_inline;
-  }};
-
-/// Compile-time information about a destructor.
-struct destructor_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = destructor_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : access(n & 0x03), 
-        is_virtual(n & 0x10),
-        is_pure(n & 0x20),
-        is_override(n & 0x40),
-        is_final(n & 0x80),
-        is_defined(n & 0x0200),
-        is_deleted(n & 0x0400),
-        is_defaulted(n & 0x0400),
-        is_inline(n & 0x0800)
-    { }
-
-    unsigned access : 2;
-    bool is_virtual : 1;
-    bool is_pure : 1;
-    bool is_override : 1;
-    bool is_final : 1;
-    bool is_defined : 1;
-    bool is_deleted : 1;
-    bool is_defaulted : 1;
-    bool is_inline : 1;
-  };
-
-  immediate destructor_info() = default;
-
-  immediate destructor_info(meta_info mi)
-    : data(mi.is_destructor() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  };
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-
-  immediate bool is_virtual() const {
-    return traits().is_virtual;
-  }
-
-  immediate bool is_pure_virtual() const {
-    return traits().is_pure;
-  }
-
-  immediate bool is_override() const {
-    return traits().is_override;
-  }
-
-  immediate bool is_final() const {
-    return traits().is_final;
-  }
-
-  immediate bool is_defined() const {
-    return traits().is_defined;
-  }
-
-  immediate bool is_deleted() const {
-    return traits().is_deleted;
-  }
-
-  immediate bool is_defaulted() const {
-    return traits().is_deleted;
-  }
-
-  immediate bool is_inline() const {
-    return traits().is_inline;
-  }
-};
-
-/// Compile-time information about a conversion function.
-struct conversion_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = conversion_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : access(n & 0x03),
-        is_explicit(n & 0x08),
-        is_constexpr(n & 0x10),
-        is_virtual(n & 0x20),
-        is_pure(n & 0x40),
-        is_override(n & 0x80),
-        is_final(n & 0x0100),
-        is_defined(n & 0x0400),
-        is_deleted(n & 0x0800),
-        is_inline(n & 0x01000)
-    { }
-
-    unsigned access : 2;
-    bool is_explicit : 1;
-    bool is_constexpr : 1;
-    bool is_virtual : 1;
-    bool is_pure : 1;
-    bool is_override : 1;
-    bool is_final : 1;
-    bool is_defined : 1;
-    bool is_deleted : 1;
-    bool is_inline : 1;
-  };
-
-  immediate conversion_info() = default;
-
-  immediate conversion_info(meta_info mi)
-    : data(mi.is_conversion() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-};
-
-/// Compile-time information about an enumeration.
-///
-/// \todo Add support for underlying type.
-struct enum_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = enum_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : linkage(n & 0x03),
-        access((n & 0x0c) >> 2),
-        is_complete(n & 0x10),
-        is_scoped(n & 0x20)
-    { }
-    
-    unsigned linkage : 2;
-    unsigned access : 2;
-    bool is_complete : 1;
-    bool is_scoped : 1;
-  };
-
-  immediate enum_info() = default;
-  
-  immediate enum_info(meta_info mi)
-    : data(mi.is_enum() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate member_range members() const noexcept {
-    return {*this};
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate linkage_kind linkage() const noexcept {
-    return linkage_kind(traits().linkage);
-  }
-
-  immediate bool has_linkage() const noexcept {
-    return linkage() != no_linkage;
-  }
-
-  immediate bool has_external_linkage() const noexcept {
-    return linkage() == external_linkage;
-  }
-
-  immediate bool has_internal_linkage() const noexcept {
-    return linkage() == internal_linkage;
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  };
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-
-  immediate bool is_complete() const noexcept {
-    return traits().is_complete;
-  }
-
-  immediate bool is_scoped() const noexcept {
-    return traits().is_scoped;
-  }
-};
-
-/// Compile-time information about an enumerator.
-struct enumerator_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = enumerator_decl;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : linkage(n & 0x03),
-        access((n & 0x0c) >> 2)
-    { }
-    
-    unsigned linkage : 2;
-    unsigned access : 2;
-  };
-
-  immediate enumerator_info() = default;
-
-  immediate enumerator_info(meta_info mi)
-    : data(mi.is_enumerator() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-
-  immediate meta_info type() const noexcept {
-    return __reflect_type(data);
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate linkage_kind linkage() const noexcept {
-    return linkage_kind(traits().linkage);
-  }
-
-  immediate bool has_linkage() const noexcept {
-    return linkage() != no_linkage;
-  }
-
-  immediate bool has_external_linkage() const noexcept {
-    return linkage() == external_linkage;
-  }
-
-  immediate bool has_internal_linkage() const noexcept {
-    return linkage() == internal_linkage;
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  };
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-
-  template<typename T>
-  immediate T value() const noexcept {
-    T val{};
-    (void)__reflect_value(data, val);
-    return val;
-  }
-};
-
-/// Compile-time information about an access specifier.
-struct access_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = access_spec;
-
-  struct traits_type {
-    immediate explicit traits_type(unsigned n) 
-      : access(n & 0x03)
-    { }
-    
-    unsigned access : 2;
-  };
-
-  immediate access_info() = default;
-
-  immediate access_info(meta_info mi)
-    : data(mi.is_access_specifier() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate traits_type traits() const noexcept {
-    return traits_type(__reflect_traits(data));
-  }
-
-  immediate access_kind access() const noexcept {
-    return access_kind(traits().access);
-  }
-
-  immediate bool is_public() const noexcept {
-    return access() == public_access;
-  }
-
-  immediate bool is_private() const noexcept {
-    return access() == private_access;
-  }
-
-  immediate bool is_protected() const noexcept {
-    return access() == protected_access;
-  }
-};
-
-
-// -------------------------------------------------------------------------- //
-// Types
-
-/// Compile-time information about the void type.
-struct void_type_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = void_type;
-
-  immediate void_type_info() = default;
-
-  immediate void_type_info(meta_info mi)
-    : data(mi.is_void_type() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-/// Compile-time information about a character type.
-struct character_type_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = character_type;
-
-  immediate character_type_info() = default;
-
-  immediate character_type_info(meta_info mi)
-    : data(mi.is_character_type() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-/// Compile-time information about an integral type.
-struct integral_type_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = integral_type;
-
-  immediate integral_type_info() = default;
-
-  immediate integral_type_info(meta_info mi)
-    : data(mi.is_integral_type() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-/// Compile-time information about a floating point type.
-struct floating_point_type_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = floating_point_type;
-
-  immediate floating_point_type_info() = default;
-
-  immediate floating_point_type_info(meta_info mi)
-    : data(mi.is_floating_point_type() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-/// Compile-time information about a reference type.
-struct reference_type_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = reference_type;
-
-  immediate reference_type_info() = default;
-
-  immediate reference_type_info(meta_info mi)
-    : data(mi.is_reference_type() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-/// Compile-time information about a function type.
-struct function_type_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = function_type;
-
-  immediate function_type_info() = default;
-
-  immediate function_type_info(meta_info mi)
-    : data(mi.is_function_type() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-/// Compile-time information about a pointer type.
-struct pointer_type_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = pointer_type;
-
-  immediate pointer_type_info() = default;
-
-  immediate pointer_type_info(meta_info mi)
-    : data(mi.is_pointer_type() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-/// Compile-time information about a array type.
-struct array_type_info {
-  meta_data data;
-
-  static constexpr construct_kind construct = array_type;
-
-  immediate array_type_info() = default;
-
-  immediate array_type_info(meta_info mi)
-    : data(mi.is_array_type() ? mi.data : mi.null)
-  { }
-
-  static immediate construct_kind index() noexcept {
-    return construct;
-  }
-
-  immediate operator meta_info() const noexcept {
-    return meta_info(data);
-  }
-
-  immediate reflection_t handle() const noexcept {
-    return data.handle;
-  }
-
-  immediate explicit operator bool() const noexcept { 
-    return has_value(); 
-  }
-
-  immediate bool has_value() const noexcept { 
-    return !data.null(); 
-  }
-
-  immediate const char* name() const noexcept {
-    return __reflect_name(data);
-  }
-};
-
-
-// -------------------------------------------------------------------------- //
-// Definitions
-
-immediate bool is_member_variable_p::operator()(meta_info mi) const noexcept {
-  return mi.is_member_variable();
 }
 
-immediate bool is_instance_variable_p::operator()(meta_info mi) const noexcept {
-  if (member_variable_info var = mi)
-    return !var.is_static();
-  return false;
-}
-
-immediate bool is_class_variable_p::operator()(meta_info mi) const noexcept {
-  if (member_variable_info var = mi)
-    return var.is_static();
-  return false;
-}
-
-immediate bool is_member_function_p::operator()(meta_info mi) const noexcept {
-  return mi.is_member_function() || 
-         mi.is_constructor() || 
-         mi.is_destructor() ||
-         mi.is_conversion();
-}
-
-immediate bool is_instance_function_p::operator()(meta_info mi) const noexcept {
-  if (member_function_info fn = mi)
-    return !fn.is_static();
-  return mi.is_constructor() || mi.is_destructor() || mi.is_conversion();
-}
-
-immediate bool is_constructor_p::operator()(meta_info mi) const noexcept {
-  return mi.is_constructor();
-}
-
-immediate bool is_destructor_p::operator()(meta_info mi) const noexcept {
-  return mi.is_destructor();
-}
-
-immediate bool is_class_function_p::operator()(meta_info mi) const noexcept {
-  if (member_function_info fn = mi)
-    return fn.is_static();
-  return false;
-}
-
-immediate memvar_range class_info::all_member_variables() const noexcept {
-  return {*this};
-}
-
-immediate instance_memvar_range class_info::member_variables() const noexcept {
-  return {*this};
-}
-
-immediate class_memvar_range class_info::static_member_variables() const noexcept {
-  return {*this};
-}
-
-immediate memfun_range class_info::all_member_functions() const noexcept {
-  return {*this};
-}
-
-immediate constructor_range class_info::constructors() const noexcept {
-  return {*this};
-}
-
-immediate destructor_range class_info::destructors() const noexcept {
-  return {*this};
-}
-
-immediate class_memfun_range class_info::static_member_functions() const noexcept {
-  return {*this};
-}
-
-
-// -------------------------------------------------------------------------- //
-// Utilities
-
-struct compiler_type {
-  static immediate void print(const char* str) noexcept {
-    (void)__reflect_print(str);
+immediate bool has_access(object x) {
+  switch (kind(x)) {
+    default:
+      return false;
+    case data_member_decl:
+    case member_function_decl:
+    case access_spec:
+      return true;
+    case class_decl:
+      return class_traits(x).access != no_access;
+    case enum_decl:
+      return class_traits(x).access != no_access;
+    case enumerator_decl:
+      return enumerator_traits(x).access != no_access;
   }
+}
 
-  // template<typename T>
-  // static immediate std::enable_if_t<std::is_integral_v<T>, void>
-  // print(T n) noexcept {
-  //   (void)__reflect_print(n);
-  // }
-
-  // Specialization for reflected types.
-  template<typename T>
-  static immediate std::enable_if_t<T::construct != 0, void>
-  print(T info) noexcept {
-    (void)__reflect_print(info.data);
+immediate bool is_public(object x) {
+  assert(has_access(x));
+  switch (kind(x)) {
+    case data_member_decl:
+      return data_member_traits(x).access ==  public_access;
+    case member_function_decl:
+      return member_function_traits(x).access ==  public_access;
+    case access_spec:
+      return access_traits(x).access ==  public_access;
+    case class_decl:
+      return class_traits(x).access == public_access;
+    case enum_decl:
+      return class_traits(x).access == public_access;
+    case enumerator_decl:
+      return enumerator_traits(x).access == public_access;
+    default:
+      __builtin_unreachable();
   }
-} compiler;
+}
 
-#endif
+immediate bool is_private(object x) {
+  assert(has_access(x));
+  switch (kind(x)) {
+    case data_member_decl:
+      return data_member_traits(x).access ==  private_access;
+    case member_function_decl:
+      return member_function_traits(x).access ==  private_access;
+    case access_spec:
+      return access_traits(x).access ==  private_access;
+    case class_decl:
+      return class_traits(x).access == private_access;
+    case enum_decl:
+      return class_traits(x).access == private_access;
+    case enumerator_decl:
+      return enumerator_traits(x).access == private_access;
+    default:
+      __builtin_unreachable();
+  }
+}
+
+immediate bool is_protected(object x) {
+  assert(has_access(x));
+  switch (kind(x)) {
+    case data_member_decl:
+      return data_member_traits(x).access ==  protected_access;
+    case member_function_decl:
+      return member_function_traits(x).access ==  protected_access;
+    case access_spec:
+      return access_traits(x).access ==  protected_access;
+    case class_decl:
+      return class_traits(x).access == protected_access;
+    case enum_decl:
+      return class_traits(x).access == protected_access;
+    case enumerator_decl:
+      return enumerator_traits(x).access == protected_access;
+    default:
+      __builtin_unreachable();
+  }
+}
+
+immediate bool is_static(object x) {
+  switch (kind(x)) {
+    case variable_decl:
+      return variable_traits(x).is_static;
+    case function_decl:
+      return function_traits(x).is_static;
+    case data_member_decl:
+      return data_member_traits(x).is_static;
+    case member_function_decl:
+      return member_function_traits(x).is_static;
+    default:
+      __builtin_unreachable();
+  }
+}
+
+immediate bool is_extern(object x) {
+  switch (kind(x)) {
+    case variable_decl:
+      return variable_traits(x).is_extern;
+    case function_decl:
+      return function_traits(x).is_extern;
+    default:
+      __builtin_unreachable();
+  }
+}
+
+immediate bool is_inline(object x) {
+  switch (kind(x)) {
+    case namespace_decl:
+      return namespace_traits(x).is_inline;
+    case variable_decl:
+      return variable_traits(x).is_inline;
+    case function_decl:
+      return function_traits(x).is_inline;
+    case data_member_decl:
+      return data_member_traits(x).is_inline;
+    case member_function_decl:
+      return member_function_traits(x).is_inline;
+    default:
+      __builtin_unreachable();
+  }
+}
+
+immediate bool is_constexpr(object x) {
+  switch (kind(x)) {
+    case variable_decl:
+      return variable_traits(x).is_constexpr;
+    case function_decl:
+      return function_traits(x).is_constexpr;
+    case data_member_decl:
+      return data_member_traits(x).is_constexpr;
+    case member_function_decl:
+      return member_function_traits(x).is_constexpr;
+    default:
+      __builtin_unreachable();
+  }
+}
+
+immediate bool is_normal(object x) {
+  return member_function_traits(x).kind == normal;
+}
+
+immediate bool is_constructor(object x) {
+  return member_function_traits(x).kind == constructor;
+}
+
+immediate bool is_destructor(object x) {
+  return member_function_traits(x).kind == destructor;
+}
+
+immediate bool is_conversion(object x) {
+  return member_function_traits(x).kind == conversion;
+}
+
+immediate bool is_explicit(object x) {
+  return member_function_traits(x).is_explicit;
+}
+
+immediate bool is_virtual(object x) {
+  return member_function_traits(x).is_virtual;
+}
+
+immediate bool is_pure_virtual(object x) {
+  return member_function_traits(x).is_pure;
+}
+
+immediate bool is_override(object x) {
+  return member_function_traits(x).is_override;
+}
+
+immediate bool is_final(object x) {
+  return member_function_traits(x).is_final;
+}
+
+immediate bool is_defaulted(object x) {
+  return member_function_traits(x).is_defaulted;
+}
+
+immediate bool is_mutable(object x) {
+  return data_member_traits(x).is_mutable;
+}
+
+// TODO: Add an accessor for the bit width.
+immediate bool is_bitfield(object x) {
+  return data_member_traits(x).is_bitfield;
+}
+
+immediate bool is_defined(object x) {
+  switch (kind(x)) {
+    case variable_decl:
+      // FIXME: This is not accurate.
+      return !is_extern(x);
+    case function_decl:
+      return function_traits(x).is_defined;
+    case class_decl:
+      return class_traits(x).is_complete;
+    case data_member_decl:
+      return true;
+    case member_function_decl:
+      return member_function_traits(x).is_defined;
+    default:
+      __builtin_unreachable();
+  }
+}
+
+immediate bool is_deleted(object x) {
+  switch (kind(x)) {
+    case function_decl:
+      return function_traits(x).is_deleted;
+    case member_function_decl:
+      return member_function_traits(x).is_deleted;
+    default:
+      __builtin_unreachable();
+  }
+}
+
+immediate bool is_declared_struct(object x) {
+  return class_traits(x).key == struct_key;
+}
+
+immediate bool is_declared_class(object x) {
+  return class_traits(x).key == class_key;
+}
+
+immediate bool is_union(object x) {
+  return class_traits(x).key == union_key;
+}
+
+immediate bool is_complete(object x) {
+  return class_traits(x).is_complete;
+}
+
+immediate bool is_injected_class_name(object x) {
+  return class_traits(x).is_injected;
+}
+
+immediate bool is_scoped(object x) {
+  return enum_traits(x).is_scoped;
+}
 
 } // inline namespace v1
 } // namespace meta
