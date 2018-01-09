@@ -1,95 +1,324 @@
-// RUN: echo
-
 #include <cppx/meta>
+// #include <cppx/compiler>
 
-using namespace cppx::meta;
+// #include <iostream>
+// #include <typeinfo>
 
-struct S {
-  void f() { }
-  int m;
+using namespace cppx;
+
+int x1;
+static int x2;
+
+void f1() { }
+void f2();
+static inline void f3() { }
+constexpr int f4() { return 0; }
+void f5(int) = delete;
+
+class C1 { };
+
+class C2;
+
+struct S1 {
+  int x1;
+  mutable int x2;
+  static int x3;
+  static constexpr int x4 = 0;
+  int x5 : 4;
+
+  void f1() { }
+
+  class C { };
 };
 
-union U {
-  int m;
-};
+union U1 { };
 
-enum E { X };
+enum E1 { X };
+enum class E2 { X };
+enum class E3 : int;
 
-namespace N { }
+namespace N { 
+  inline namespace M { }
+}
 
-int global = 0;
-
-int main(int argc, const char* argv[]) {
-  int local = 0;
-
-  // Type reflections
-  static_assert(std::is_same_v<void_type_info, decltype(reflexpr(void))>);
+int main(int argc, char* argv[]) {
   
-  static_assert(std::is_same_v<character_type_info, decltype(reflexpr(char))>);
-  static_assert(std::is_same_v<character_type_info, decltype(reflexpr(char16_t))>);
-  static_assert(std::is_same_v<character_type_info, decltype(reflexpr(char32_t))>);
-  static_assert(std::is_same_v<character_type_info, decltype(reflexpr(wchar_t))>);
+  // Variables
+  static_assert(std::is_same_v<decltype(reflexpr(x1)), meta::variable_info>);
 
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(bool))>);
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(short))>);
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(int))>);
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(long))>);
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(long long))>);
+  // int x1 -- global
+  {
+    constexpr auto r = reflexpr(x1);
+    static_assert(kind(r) == meta::variable_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(has_static_storage(r) == true);
+    static_assert(is_extern(r) == false);
+    static_assert(is_static(r) == false);
+    static_assert(is_inline(r) == false);
+    static_assert(is_constexpr(r) == false);
+  }
 
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(unsigned short))>);
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(unsigned int))>);
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(unsigned long))>);
-  static_assert(std::is_same_v<integral_type_info, decltype(reflexpr(unsigned long long))>);
+  // static int x2 -- global
+  {
+    constexpr auto r = reflexpr(x2);
+    static_assert(kind(r) == meta::variable_decl);
+    static_assert(has_internal_linkage(r) == true);
+    static_assert(has_static_storage(r) == true);
+    static_assert(is_extern(r) == false);
+    static_assert(is_static(r) == true);
+    static_assert(is_inline(r) == false);
+    static_assert(is_constexpr(r) == false);
+  }
+
+  // Functions
+  static_assert(std::is_same_v<decltype(reflexpr(f1)), meta::function_info>);
+
+  // void f1() { }
+  {
+    constexpr auto r = reflexpr(f1);
+    static_assert(kind(r) == meta::function_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(is_static(r) == false);
+    static_assert(is_extern(r) == false);
+    static_assert(is_constexpr(r) == false);
+    static_assert(is_defined(r) == true);
+    static_assert(is_inline(r) == false);
+    static_assert(is_deleted(r) == false);
+  }
+
+  // void f2();
+  {
+    constexpr auto r = reflexpr(f2);
+    static_assert(kind(r) == meta::function_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(is_static(r) == false);
+    static_assert(is_extern(r) == false);
+    static_assert(is_constexpr(r) == false);
+    static_assert(is_defined(r) == false);
+  }
+
+  // static inline void f3() { }
+  {
+    constexpr auto r = reflexpr(f3);
+    static_assert(kind(r) == meta::function_decl);
+    static_assert(has_internal_linkage(r) == true);
+    static_assert(is_static(r) == true);
+    static_assert(is_extern(r) == false);
+    static_assert(is_constexpr(r) == false);
+    static_assert(is_defined(r) == true);
+    static_assert(is_inline(r) == true);
+    static_assert(is_deleted(r) == false);
+  }
+
+  // constexpr int f4() { return 0; }
+  {
+    constexpr auto r = reflexpr(f4);
+    static_assert(kind(r) == meta::function_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(is_static(r) == false);
+    static_assert(is_extern(r) == false);
+    static_assert(is_constexpr(r) == true);
+    static_assert(is_defined(r) == true);
+    static_assert(is_inline(r) == true);
+    static_assert(is_deleted(r) == false);
+  }
+
+  // void f5(int) = delete;
+  {
+    constexpr auto r = reflexpr(f5);
+    static_assert(kind(r) == meta::function_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(is_static(r) == false);
+    static_assert(is_extern(r) == false);
+    static_assert(is_constexpr(r) == false);
+    static_assert(is_defined(r) == true);
+    static_assert(is_inline(r) == true); // FIXME: Apparently so.
+    static_assert(is_deleted(r) == true);
+  }
+
+  // Namespaces
   
-  static_assert(std::is_same_v<floating_point_type_info, decltype(reflexpr(float))>);
-  static_assert(std::is_same_v<floating_point_type_info, decltype(reflexpr(double))>);
-  static_assert(std::is_same_v<floating_point_type_info, decltype(reflexpr(long double))>);
+  static_assert(std::is_same_v<decltype(reflexpr(N)), meta::namespace_info>);
+  
+  // namespace N
+  {
+    constexpr auto r = reflexpr(N);
+    static_assert(kind(r) == meta::namespace_decl);
+    static_assert(is_inline(r) == false);
+  }
 
-  static_assert(std::is_same_v<pointer_type_info, decltype(reflexpr(int*))>);
-  static_assert(std::is_same_v<array_type_info, decltype(reflexpr(int[3]))>);
-  static_assert(std::is_same_v<array_type_info, decltype(reflexpr(int[]))>);
+  // inline namespace N::M
+  {
+    constexpr auto r = reflexpr(N::M);
+    static_assert(kind(r) == meta::namespace_decl);
+    static_assert(is_inline(r) == true);
+  }
 
-  static_assert(std::is_same_v<function_type_info, decltype(reflexpr(auto()->void))>);
-  static_assert(std::is_same_v<function_type_info, decltype(reflexpr(auto(int, int)->void))>);
+  // Classes
 
-  // FIXME: This doesn't parse. It should.
-  // static_assert(function_type_info(reflexpr( void() )));
+  static_assert(std::is_same_v<decltype(reflexpr(C1)), meta::class_info>);
 
-  // FIXME: Write more tests.
-  static_assert(reflexpr(void).index() == void_type);
-  static_assert(reflexpr(char).index() == character_type);
-  static_assert(reflexpr(bool).index() == integral_type);
-  static_assert(reflexpr(int).index() == integral_type);
-  static_assert(reflexpr(float).index() == floating_point_type);
+  // class C1 { };
+  {
+    constexpr auto r = reflexpr(C1);
+    static_assert(kind(r) == meta::class_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(has_access(r) == false);
+    static_assert(is_class(r) == true);
+    static_assert(is_complete(r) == true);
+  }
 
-  // Declaration tests
-  static_assert(std::is_same_v<variable_info, decltype(reflexpr(local))>);
-  static_assert(std::is_same_v<function_info, decltype(reflexpr(main))>);
-  static_assert(std::is_same_v<parameter_info, decltype(reflexpr(argc))>);
-  static_assert(std::is_same_v<class_info, decltype(reflexpr(S))>);
-  static_assert(std::is_same_v<class_info, decltype(reflexpr(struct S))>);
-  static_assert(std::is_same_v<union_info, decltype(reflexpr(U))>);
-  static_assert(std::is_same_v<union_info, decltype(reflexpr(union U))>);
-  static_assert(std::is_same_v<member_variable_info, decltype(reflexpr(S::m))>);
-  static_assert(std::is_same_v<member_function_info, decltype(reflexpr(S::f))>);
-  static_assert(std::is_same_v<enum_info, decltype(reflexpr(E))>);
-  static_assert(std::is_same_v<enum_info, decltype(reflexpr(enum E))>);
-  static_assert(std::is_same_v<enumerator_info, decltype(reflexpr(X))>);
-  static_assert(std::is_same_v<namespace_info, decltype(reflexpr(N))>);
+  // class C2;
+  {
+    constexpr auto r = reflexpr(C2);
+    static_assert(kind(r) == meta::class_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(has_access(r) == false);
+    static_assert(is_class(r) == true);
+    static_assert(is_complete(r) == false);
+  }
 
-  static_assert(reflexpr(local).index() == variable_decl);
-  static_assert(reflexpr(global).index() == variable_decl);
-  static_assert(reflexpr(main).index() == function_decl);
-  static_assert(reflexpr(argc).index() == parameter_decl);
-  static_assert(reflexpr(S).index() == class_decl);
-  static_assert(reflexpr(struct S).index() == class_decl);
-  static_assert(reflexpr(U).index() == union_decl);
-  static_assert(reflexpr(union U).index() == union_decl);
-  static_assert(reflexpr(S::m).index() == member_variable_decl);
-  static_assert(reflexpr(S::f).index() == member_function_decl);
-  static_assert(reflexpr(U::m).index() == member_variable_decl);
-  static_assert(reflexpr(E).index() == enum_decl);
-  static_assert(reflexpr(X).index() == enumerator_decl);
-  static_assert(reflexpr(N).index() == namespace_decl);
+  // struct S1 { ... };
+  {
+    constexpr auto r = reflexpr(S1);
+    static_assert(kind(r) == meta::class_decl);
+    static_assert(is_struct(r) == true);
+  }
 
-} 
+  // class S1::C { ... };
+  {
+    constexpr auto r = reflexpr(S1::C);
+    static_assert(kind(r) == meta::class_decl);
+    static_assert(has_access(r) == true);
+    static_assert(is_public(r) == true);
+  }
+  
+  // union U1 { ... };
+  {
+    constexpr auto r = reflexpr(U1);
+    static_assert(kind(r) == meta::class_decl);
+    static_assert(is_union(r) == true);
+  }
+
+  // Data members
+
+  static_assert(std::is_same_v<decltype(reflexpr(S1::x1)), meta::data_member_info>);
+
+  // int S1::x1;
+  {
+    constexpr auto r = reflexpr(S1::x1);
+    static_assert(kind(r) == meta::data_member_decl);
+    static_assert(is_public(r) == true);
+    static_assert(is_static(r) == false);
+    static_assert(is_mutable(r) == false);
+    static_assert(is_inline(r) == false);
+    static_assert(is_constexpr(r) == false);
+    static_assert(is_bitfield(r) == false);
+  }
+
+  // mutable int S1::x2;
+  {
+    constexpr auto r = reflexpr(S1::x2);
+    static_assert(kind(r) == meta::data_member_decl);
+    static_assert(is_static(r) == false);
+    static_assert(is_mutable(r) == true);
+  }
+
+  // static int S1::x3;
+  {
+    constexpr auto r = reflexpr(S1::x3);
+    static_assert(kind(r) == meta::data_member_decl);
+    static_assert(is_static(r) == true);
+    static_assert(is_mutable(r) == false);
+  }
+
+  // static constexpr int S1::x4;
+  {
+    constexpr auto r = reflexpr(S1::x4);
+    static_assert(kind(r) == meta::data_member_decl);
+    static_assert(is_static(r) == true);
+    static_assert(is_inline(r) == true);
+    static_assert(is_constexpr(r) == true);
+  }
+
+  // int S1::x5 : 4;
+  {
+    constexpr auto r = reflexpr(S1::x5);
+    static_assert(kind(r) == meta::data_member_decl);
+    static_assert(is_static(r) == false);
+    static_assert(is_bitfield(r) == true);
+  }
+
+  // Member functions
+
+  static_assert(std::is_same_v<decltype(reflexpr(S1::f1)), meta::member_function_info>);
+
+  // int S1::f1() { }
+  {
+    constexpr auto r = reflexpr(S1::f1);
+    static_assert(kind(r) == meta::member_function_decl);
+    static_assert(is_public(r) == true);
+    static_assert(is_normal(r) == true);
+    static_assert(is_static(r) == false);
+    static_assert(is_constexpr(r) == false);
+    static_assert(is_virtual(r) == false);
+    static_assert(is_pure_virtual(r) == false);
+    static_assert(is_override(r) == false);
+    static_assert(is_final(r) == false);
+    static_assert(is_defined(r) == true);
+    static_assert(is_inline(r) == true); // in-class members are implicitly inline
+    static_assert(is_deleted(r) == false);
+  }
+
+  // FIXME: Add more tests for member functions.
+
+  // Enums
+
+  static_assert(std::is_same_v<decltype(reflexpr(E1)), meta::enum_info>);
+
+  // enum E1 { ... }
+  {
+    constexpr auto r = reflexpr(E1);
+    static_assert(kind(r) == meta::enum_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(has_access(r) == false);
+    static_assert(is_scoped(r) == false);
+  }
+
+  // enum class E2 { ... }
+  {
+    constexpr auto r = reflexpr(E2);
+    static_assert(kind(r) == meta::enum_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(has_access(r) == false);
+    static_assert(is_scoped(r) == true);
+  }
+
+  // enum class : int;
+  {
+    constexpr auto r = reflexpr(E3);
+    static_assert(kind(r) == meta::enum_decl);
+    static_assert(has_external_linkage(r) == true);
+    static_assert(has_access(r) == false);
+    static_assert(is_scoped(r) == true);
+  }
+
+  // Enumerators
+
+  static_assert(std::is_same_v<decltype(reflexpr(X)), meta::enumerator_info>);
+
+  // enum E1 { X }
+  {
+    constexpr auto r = reflexpr(X);
+    static_assert(kind(r) == meta::enumerator_decl);
+    static_assert(has_access(r) == false);
+  }
+
+  // enum class E2 { X }
+  {
+    constexpr auto r = reflexpr(E2::X);
+    static_assert(kind(r) == meta::enumerator_decl);
+    static_assert(has_access(r) == false);
+  }
+
+}
