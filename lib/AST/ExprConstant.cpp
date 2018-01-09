@@ -4921,6 +4921,9 @@ enum ConstructKind {
 };
 
 static std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
+  if (R.isNull())
+    return CK_Null;
+
   if (const Decl *D = R.getAsDeclaration()) {
     switch (D->getKind()) {
     case Decl::TranslationUnit:
@@ -5396,10 +5399,19 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
 
   Reflection R = Args[0];
 
-  // Reject null operands here.
-  if (R.isNull()) {
-    CCEDiag(E->getArg(0), diag::note_empty_reflection) << 0;
-    return false;  
+  // Selectively reject null reflections here.
+  switch (E->getTrait()) {
+  case URT_ReflectIndex:
+    // Allow null reflections for these traits.
+    break;
+  default:
+    // Disallow them for all others.
+    //
+    // TODO: Diagnose which property was invalidly reflected.
+    if (R.isNull()) {
+      CCEDiag(E->getArg(0), diag::note_empty_reflection) << 0;
+      return false;  
+    }
   }
 
   switch (E->getTrait()) {
@@ -5408,9 +5420,14 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       llvm::APSInt Index = Info.Ctx.MakeIntValue(CK, E->getType());
       return DerivedSuccess(APValue(Index), E);
     }
+    
     case URT_ReflectContext: {
       if (const Decl *D = R.getAsDeclaration()) {
-        Decl *Owner = Decl::castFromDeclContext(D->getDeclContext());
+        Decl *Owner;
+        if (const DeclContext *DC = D->getDeclContext())
+          Owner = Decl::castFromDeclContext(D->getDeclContext());
+        else
+          Owner = nullptr;
         APValue Result;
         MakeReflection(Info.Ctx, Owner, Result);
         return DerivedSuccess(Result, E);

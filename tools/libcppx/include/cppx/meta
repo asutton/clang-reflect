@@ -25,10 +25,9 @@ enum class parameter_info : std::intptr_t { };
 enum class class_info : std::intptr_t { };
 enum class data_member_info : std::intptr_t { };
 enum class member_function_info : std::intptr_t { };
+enum class access_specifier_info : std::intptr_t { };
 enum class enum_info : std::intptr_t { };
 enum class enumerator_info : std::intptr_t { };
-enum class access_specifier_info : std::intptr_t { };
-enum class static_assert_info : std::intptr_t { };
 
 // Types
 
@@ -55,9 +54,9 @@ enum construct_kind {
   class_decl,
   data_member_decl,
   member_function_decl,
+  access_spec,
   enum_decl,
   enumerator_decl,
-  access_spec,
 
   // Types
   void_type,
@@ -138,13 +137,143 @@ template<> struct is_reflection<function_type_info> : std::true_type { };
 template<typename T>
 constexpr bool is_reflection_v = is_reflection<T>::value;
 
+template<typename T1, typename T2>
+constexpr bool are_reflections_v = is_reflection_v<T1> && is_reflection_v<T2>;
+
 } // namespace detail
+
+// Equality comparison
+
+template<typename T1, typename T2, typename = std::enable_if_t<detail::are_reflections_v<T1, T2>>>
+immediate bool operator==(T1 a, T2 b) {
+  return (construct_info)a == (construct_info)b;
+}
+
+template<typename T1, typename T2, typename = std::enable_if_t<detail::are_reflections_v<T1, T2>>>
+immediate bool operator!=(T1 a, T2 b) {
+  return (construct_info)a != (construct_info)b;
+}
+
+// Kind and kind testing
 
 /// Returns the kind (discriminator) of the meta object.
 template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
 immediate construct_kind kind(T x) {
     return (construct_kind)__reflect_index(x); 
 }
+
+/// True if x is a null reflection.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_null(T x) {
+  return kind(x) == null_construct;
+}
+
+/// True if x reflects a declaration.
+///
+/// TODO: Make sure this stays in agreement with construct_kind.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_declaration(T x) {
+  construct_kind k = kind(x);
+  return translation_unit <= k && k <= enumerator_decl;
+}
+
+/// True if x reflects a fundamental or non-user-defined type.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_type(T x) {
+  construct_kind k = kind(x);
+  return void_type <= k && k <= array_type;
+}
+
+/// True if x reflects a translation unit.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_translation_unit(T x) {
+    return kind(x) == translation_unit;
+}
+
+/// True if x reflects a namespace.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_namespace(T x) {
+    return kind(x) == namespace_decl;
+}
+
+/// True if x reflects a variable.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_variable(T x) {
+    return kind(x) == variable_decl;
+}
+
+/// True if x reflects a function.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_function(T x) {
+    return kind(x) == function_decl;
+}
+
+/// True if x reflects a parameter.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_parameter(T x) {
+    return kind(x) == parameter_decl;
+}
+
+/// True if x reflects a class.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_class(T x) {
+    return kind(x) == class_decl;
+}
+
+/// True if x reflects a data member.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_data_member(T x) {
+    return kind(x) == data_member_decl;
+}
+
+/// True if x reflects a member function.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_member_function(T x) {
+    return kind(x) == member_function_decl;
+}
+
+/// True if x reflects an access specifier.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_access_specifier(T x) {
+    return kind(x) == access_spec;
+}
+
+/// True if x reflections an enum.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_enum(T x) {
+    return kind(x) == enum_decl;
+}
+
+/// True if x reflects an enumerator.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate bool is_enumerator(T x) {
+    return kind(x) == enumerator_decl;
+}
+
+// Context
+
+// Returns the lexical context of the declaration.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate construct_info parent(T x) {
+  return __reflect_context(x);
+}
+
+// Returns the home context of the declaration.
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate construct_info home(T x) {
+  // return __reflect_home(x);
+  return {};
+}
+
+// Context
+
+// Returns the next
+template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
+immediate construct_info next(T x) {
+  // return __reflect_next(x);
+  return {};
+}
+
 
 // -------------------------------------------------------------------------- //
 // Namespaces
