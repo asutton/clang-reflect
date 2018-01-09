@@ -4894,7 +4894,7 @@ public:
   }
 };
 
-// TODO: Keep this in sync with cppx::meta::object_kind.
+// TODO: Keep this in sync with cppx::meta::construct_kind.
 enum ConstructKind {
   CK_Null = 0,
 
@@ -4904,12 +4904,8 @@ enum ConstructKind {
   CK_FunctionDecl,
   CK_ParameterDecl,
   CK_ClassDecl,
-  CK_UnionDecl,
-  CK_MemberVariableDecl,
+  CK_DataMemberDecl,
   CK_MemberFunctionDecl,
-  CK_ConstructorDecl,
-  CK_DestructorDecl,
-  CK_ConversionDecl,
   CK_EnumDecl,
   CK_EnumeratorDecl,
   CK_AccessSpec,
@@ -4933,33 +4929,25 @@ static std::size_t ReflectIndex(ASTContext &Ctx, Reflection R) {
       return CK_NamespaceDecl;
     case Decl::Var: {
       if (D->getDeclContext()->isRecord())
-        return CK_MemberVariableDecl;
+        return CK_DataMemberDecl;
       else
         return CK_VariableDecl;
     }
     case Decl::Field:
-      return CK_MemberVariableDecl;
+      return CK_DataMemberDecl;
     case Decl::Function:
       return CK_FunctionDecl;
     case Decl::ParmVar:
       return CK_ParameterDecl;
     case Decl::CXXMethod:
-      return CK_MemberFunctionDecl;
     case Decl::CXXConstructor:
-      return CK_ConstructorDecl;
     case Decl::CXXDestructor:
-      return CK_DestructorDecl;
     case Decl::CXXConversion:
-      return CK_ConversionDecl;
+      return CK_MemberFunctionDecl;
     case Decl::AccessSpec:
       return CK_AccessSpec;
-    case Decl::CXXRecord: {
-      const TagDecl *TD = cast<TagDecl>(D);
-      if (TD->isStruct() || TD->isClass())
-        return CK_ClassDecl;
-      else
-        return CK_UnionDecl;
-    }
+    case Decl::CXXRecord: 
+      return CK_ClassDecl;
     case Decl::Enum:
       return CK_EnumDecl;
     case Decl::EnumConstant:
@@ -5055,10 +5043,33 @@ static unsigned getStorageDuration(const VarDecl *D) {
   }
 }
 
+enum KeyTrait {
+  KT_Struct,
+  KT_Class,
+  KT_Union,
+};
+
+static unsigned getClassKey(const CXXRecordDecl *D) {
+  if (D->isStruct())
+    return KT_Struct;
+  if (D->isClass())
+    return KT_Class;
+  if (D->isUnion())
+    return KT_Union;
+  llvm_unreachable("unexpected class kind");
+}
+
 // This aligns with usual access specifiers.
 static unsigned getAccess(const Decl *D) {
   return D->getAccess();
 }
+
+enum MemFunTrait {
+  MFT_Normal,
+  MFT_Constructor,
+  MFT_Destructor,
+  MFT_Conversion
+};
 
 static unsigned GetTraits(EvalInfo &Info, const Decl *D) {
     switch (D->getKind()) {
@@ -5072,111 +5083,124 @@ static unsigned GetTraits(EvalInfo &Info, const Decl *D) {
       const VarDecl *Var = cast<VarDecl>(D);
       if (Var->isStaticDataMember())
         return getStorageDuration(Var) |
-               (getAccess(Var) << 2) |
-               (true << 4) |
-               (false << 5) |
-               (Var->isInline() << 6) |
-               (Var->isConstexpr() << 7);
+               getAccess(Var) << 2 |
+               /*is_static*/ true << 4 |
+               /*is_mutable*/ false << 5 |
+               Var->isInline() << 6 |
+               Var->isConstexpr() << 7 |
+               /*is_bitfield*/ false << 8;
       else
         return getLinkage(Var) | 
-               (getStorageDuration(Var) << 2) |
-               ((Var->getStorageClass() == SC_Static) << 4) |
-               ((Var->getStorageClass() == SC_Extern) << 5) |
-               (Var->isInline() << 6) |
-               (Var->isConstexpr() << 7);
+               getStorageDuration(Var) << 2 |
+               (Var->getStorageClass() == SC_Static) << 4 |
+               (Var->getStorageClass() == SC_Extern) << 5 |
+               Var->isInline() << 6 |
+               Var->isConstexpr() << 7;
     }
     case Decl::Function: {
       const FunctionDecl *Fn = cast<FunctionDecl>(D);
       return getLinkage(Fn) |
-             ((Fn->getStorageClass() == SC_Static) << 2) |
-             ((Fn->getStorageClass() == SC_Extern) << 3) |
-             (Fn->isConstexpr() << 4) |
-             (Fn->isDefined() << 5) |
-             (Fn->isInlined() << 6) |
-             (Fn->isDeleted() << 7);
+             (Fn->getStorageClass() == SC_Static) << 2 |
+             (Fn->getStorageClass() == SC_Extern) << 3 |
+             Fn->isConstexpr() << 4 |
+             Fn->isDefined() << 5 |
+             Fn->isInlined() << 6 |
+             Fn->isDeleted() << 7;
     }
     case Decl::CXXRecord: {
       const CXXRecordDecl *Class = cast<CXXRecordDecl>(D);
-      bool IsComplete = Class->getCanonicalDecl()->isCompleteDefinition();
-      unsigned Traits = getLinkage(Class) | 
-                        (getAccess(Class) << 2) | 
-                        (IsComplete << 4);
-      if (!IsComplete)
-        return Traits;
-      if (!Class->isUnion())
-        return Traits |
-               (Class->isPolymorphic() << 5) | 
-               (Class->isAbstract() << 6) | 
-               (Class->hasAttr<FinalAttr>() << 7) | 
-               (Class->isEmpty() << 8);
-      else
-        return Traits;
+      return getLinkage(Class) | 
+             getAccess(Class) << 2 | 
+             getClassKey(Class) << 4 |
+             Class->isCompleteDefinition() << 6 |
+             Class->isInjectedClassName() << 7;
     }
     case Decl::Field: {
       // Note that all of the other properties of apply only to static
       // member variables.
       const FieldDecl *Field = cast<FieldDecl>(D);
-      return (getAccess(Field) << 2) | (Field->isMutable() << 5);
+      return ST_Automatic | // Field are never static or thread local.
+             getAccess(Field) << 2 |
+             /*is_static*/ false << 4 |
+             Field->isMutable() << 5 |
+             /*is_inline*/ false << 6 |
+             /*is_constexpr*/ false << 7 |
+             Field->isBitField() << 8;
     }
     case Decl::CXXMethod: {
       const CXXMethodDecl *Method = cast<CXXMethodDecl>(D);
       return getAccess(Method) |
-             Method->isStatic() << 2 |
-             Method->isConstexpr() << 3 |
-             Method->isVirtual() << 4 |
-             Method->isPure() << 5 |
-             Method->hasAttr<OverrideAttr>() << 6 |
-             Method->hasAttr<FinalAttr>() << 7 |
-             Method->isDefined() << 8 |
-             Method->isDeleted() << 9 |
-             Method->isInlined() << 10;
+             (MFT_Normal << 2) |
+             Method->isStatic() << 4 |
+             Method->isConstexpr() << 5 |
+             /*is_explicit*/ false << 6 |
+             Method->isVirtual() << 7 |
+             Method->isPure() << 8 |
+             Method->hasAttr<OverrideAttr>() << 9 |
+             Method->hasAttr<FinalAttr>() << 10 |
+             Method->isDefined() << 11 |
+             Method->isInlined() << 12 |
+             Method->isDeleted() << 13 |
+             /*is_defaulted*/ false << 14;
     }
     case Decl::CXXConstructor: {
       const CXXConstructorDecl *Ctor = cast<CXXConstructorDecl>(D);
       return getAccess(Ctor) |
-             Ctor->isExplicit() << 2 |
-             Ctor->isConstexpr() << 3 |
-             Ctor->isDefined() << 4 |
-             Ctor->isDeleted() << 5 |
-             Ctor->isDefaulted() << 6 |
-             Ctor->isInlined() << 7;
+             (MFT_Constructor << 2) |
+             /*is_static*/ false << 4 |
+             Ctor->isConstexpr() << 5 |
+             Ctor->isExplicit() << 6 |
+             /*is_virtual*/ false << 7 |
+             /*is_pure_virtual*/ false << 8 |
+             /*is_override*/ false << 9 |
+             /*is_final*/ false << 10 |
+             Ctor->isDefined() << 11 |
+             Ctor->isInlined() << 12 |
+             Ctor->isDeleted() << 13 |
+             Ctor->isDefaulted() << 14;
     }
     case Decl::CXXDestructor: {
       const CXXDestructorDecl *Dtor = cast<CXXDestructorDecl>(D);
       return getAccess(Dtor) |
-             Dtor->isVirtual() << 3 |
-             Dtor->isPure() << 4 |
-             Dtor->hasAttr<OverrideAttr>() << 5 |
-             Dtor->hasAttr<FinalAttr>() << 6 |
-             Dtor->isDefined() << 7 |
-             Dtor->isDeleted() << 8 |
-             Dtor->isDefaulted() << 9 |
-             Dtor->isInlined() << 10;
+             (MFT_Destructor << 2) |
+             /*is_static*/ false << 4 |
+             /*is_constexpr*/ false << 5 |
+             /*is_explicit*/ false << 6 |
+             Dtor->isVirtual() << 7 |
+             Dtor->isPure() << 8 |
+             Dtor->hasAttr<OverrideAttr>() << 9 |
+             Dtor->hasAttr<FinalAttr>() << 10 |
+             Dtor->isDefined() << 11 |
+             Dtor->isInlined() << 12 |
+             Dtor->isDeleted() << 13 |
+             Dtor->isDefaulted() << 14;
     }
     case Decl::CXXConversion: {
       const CXXConversionDecl *Conv = cast<CXXConversionDecl>(D);
       return getAccess(Conv) |
-             Conv->isExplicit() << 2 |
-             Conv->isConstexpr() << 3 |
-             Conv->isVirtual() << 4 |
-             Conv->isPure() << 5 |
-             Conv->hasAttr<OverrideAttr>() << 6 |
-             Conv->hasAttr<FinalAttr>() << 7 |
-             Conv->isDefined() << 8 |
-             Conv->isDeleted() << 9 |
-             Conv->isInlined() << 10;
+             (MFT_Destructor << 2) |
+             /*is_static*/ false << 4 |
+             Conv->isConstexpr() << 5 |
+             Conv->isExplicit() << 5 |
+             Conv->isVirtual() << 7 |
+             Conv->isPure() << 8 |
+             Conv->hasAttr<OverrideAttr>() << 9 |
+             Conv->hasAttr<FinalAttr>() << 10 |
+             Conv->isDefined() << 11 |
+             Conv->isInlined() << 12 |
+             Conv->isDeleted() << 13 |
+             /*is_defaulted*/ false << 14;
     }
     case Decl::Enum: {
       const EnumDecl *Enum = cast<EnumDecl>(D);
       return getLinkage(Enum) | 
              getAccess(Enum) << 2 | 
-             Enum->isComplete() << 4 | 
-             Enum->isScoped() << 5;
+             Enum->isScoped() << 4;
       return 0;
     }
     case Decl::EnumConstant: {
       const EnumConstantDecl *Const = cast<EnumConstantDecl>(D);
-      return getLinkage(Const) | getAccess(Const) << 2;
+      return getAccess(Const);
     }
     case Decl::AccessSpec: {
       const AccessSpecDecl *Spec = cast<AccessSpecDecl>(D);

@@ -13,7 +13,7 @@ namespace meta {
 inline namespace v1 {
 
 // The most general kind of reflection. Could be any of the following:
-enum class reflection_info : std::intptr_t { };
+enum class construct_info : std::intptr_t { };
 
 // Declarations
 
@@ -23,7 +23,6 @@ enum class variable_info : std::intptr_t { };
 enum class function_info : std::intptr_t { };
 enum class parameter_info : std::intptr_t { };
 enum class class_info : std::intptr_t { };
-enum class union_info : std::intptr_t { };
 enum class data_member_info : std::intptr_t { };
 enum class member_function_info : std::intptr_t { };
 enum class enum_info : std::intptr_t { };
@@ -44,7 +43,7 @@ enum class function_type_info { };
 
 // TODO: Keep this in sync with the compiler. The corresponding enumeration
 // is in ExprConstant.cpp.
-enum reflection_kind {
+enum construct_kind {
   null_construct = 0,
 
   // Declarations
@@ -54,7 +53,6 @@ enum reflection_kind {
   function_decl,
   parameter_decl,
   class_decl,
-  union_decl,
   data_member_decl,
   member_function_decl,
   enum_decl,
@@ -88,6 +86,13 @@ enum storage_kind {
   static_storage,
 };
 
+// Kinds of class types.
+enum class_key {
+  struct_key,
+  class_key,
+  union_key
+};
+
 // Kinds of access.
 enum access_kind {
   public_access,
@@ -96,13 +101,19 @@ enum access_kind {
   no_access,
 };
 
-
+// Kinds of member functions.
+enum memun_kind {
+  normal,
+  constructor,
+  destructor,
+  conversion,
+};
 
 namespace detail {
 
 template<typename T> struct is_reflection : std::false_type { };
 
-template<> struct is_reflection<reflection_info> : std::true_type { };
+template<> struct is_reflection<construct_info> : std::true_type { };
 
 template<> struct is_reflection<translation_unit_info> : std::true_type { };
 template<> struct is_reflection<namespace_info> : std::true_type { };
@@ -110,7 +121,6 @@ template<> struct is_reflection<variable_info> : std::true_type { };
 template<> struct is_reflection<function_info> : std::true_type { };
 template<> struct is_reflection<parameter_info> : std::true_type { };
 template<> struct is_reflection<class_info> : std::true_type { };
-template<> struct is_reflection<union_info> : std::true_type { };
 template<> struct is_reflection<data_member_info> : std::true_type { };
 template<> struct is_reflection<member_function_info> : std::true_type { };
 template<> struct is_reflection<enum_info> : std::true_type { };
@@ -132,8 +142,8 @@ constexpr bool is_reflection_v = is_reflection<T>::value;
 
 /// Returns the kind (discriminator) of the meta object.
 template<typename T, typename = std::enable_if_t<detail::is_reflection_v<T>>>
-immediate reflection_kind kind(T x) {
-    return (reflection_kind)__reflect_index(x); 
+immediate construct_kind kind(T x) {
+    return (construct_kind)__reflect_index(x); 
 }
 
 // -------------------------------------------------------------------------- //
@@ -250,7 +260,7 @@ immediate function_traits traits(function_info fn) {
 }
 
 immediate bool has_linkage(function_info fn) {
-  // FIXME: Can you actually declare a function whose name has no linkage?
+  // Can you actually declare a function whose name has no linkage?
   return traits(fn).linkage != no_linkage;
 }
 
@@ -287,6 +297,396 @@ immediate bool is_deleted(function_info fn) {
   assert(is_defined(fn));
   return traits(fn).is_deleted;
 }
+
+// -------------------------------------------------------------------------- //
+// Classes
+
+struct class_traits {
+  immediate explicit class_traits(unsigned n) 
+    : linkage(n),
+      access(n >> 2),
+      key(n >> 4),
+      is_complete(n >> 6),
+      is_injected(n >> 7)
+  { }
+  
+  unsigned linkage : 2;
+  unsigned access : 2;
+  unsigned key : 2;
+  unsigned is_complete : 1;
+  unsigned is_injected : 1;
+};
+
+immediate class_traits traits(class_info c) {
+  return class_traits(__reflect_traits(c));
+}
+
+immediate bool has_linkage(class_info c) {
+  // Can you actually declare a class whose name has no linkage?
+  return traits(c).linkage != no_linkage;
+}
+
+immediate bool has_external_linkage(class_info c) {
+  return traits(c).linkage == external_linkage;
+}
+
+immediate bool has_internal_linkage(class_info c) {
+  return traits(c).linkage == internal_linkage;
+}
+
+immediate bool has_access(class_info c) {
+  return traits(c).access != no_access;
+}
+
+immediate bool is_public(class_info c) {
+  assert(has_access(c));
+  return traits(c).access == public_access;
+}
+
+immediate bool is_private(class_info c) {
+  assert(has_access(c));
+  return traits(c).access == private_access;
+}
+
+immediate bool is_protected(class_info c) {
+  assert(has_access(c));
+  return traits(c).access == protected_access;
+}
+
+immediate bool is_struct(class_info c) {
+  return traits(c).key == struct_key;
+}
+
+immediate bool is_class(class_info c) {
+  return traits(c).key == class_key;
+}
+
+immediate bool is_union(class_info c) {
+  return traits(c).key == union_key;
+}
+
+immediate bool is_complete(class_info c) {
+  return traits(c).is_complete;
+}
+
+// These do show up in reflected class definitions, so it's useful to know
+// when to skip them.
+immediate bool is_injected_class_name(class_info c) {
+  return traits(c).is_injected;
+}
+
+// -------------------------------------------------------------------------- //
+// Data members
+
+struct data_member_traits {
+  immediate explicit data_member_traits(unsigned n) 
+    : storage(n), 
+      access(n >> 2),
+      is_static(n >> 4),
+      is_mutable(n >> 5),
+      is_inline(n >> 6),
+      is_constexpr(n >> 7),
+      is_bitfield(n >> 8)
+  { }
+  
+  unsigned storage : 2;
+  unsigned access : 2;
+  unsigned is_static : 1;
+  unsigned is_mutable : 1;
+  unsigned is_inline : 1;
+  unsigned is_constexpr : 1;
+  unsigned is_bitfield : 1;
+};
+
+immediate data_member_traits traits(data_member_info var) {
+  return data_member_traits(__reflect_traits(var));
+}
+
+immediate bool has_automatic_storage(data_member_info var) {
+  return traits(var).storage == automatic_storage;
+}
+
+immediate bool has_static_storage(data_member_info var) {
+  return traits(var).storage == static_storage;
+}
+
+immediate bool has_thread_storage(data_member_info var) {
+  return traits(var).storage == thread_storage;
+}
+
+immediate bool is_public(data_member_info var) {
+  return traits(var).access == public_access;
+}
+
+immediate bool is_private(data_member_info var) {
+  return traits(var).access == private_access;
+}
+
+immediate bool is_protected(data_member_info var) {
+  return traits(var).access == protected_access;
+}
+
+immediate bool is_static(data_member_info var) {
+  return traits(var).is_static;
+}
+
+immediate bool is_mutable(data_member_info var) {
+  return traits(var).is_mutable;
+}
+
+immediate bool is_inline(data_member_info var) {
+  return traits(var).is_inline;
+}
+
+immediate bool is_constexpr(data_member_info var) {
+  return traits(var).is_constexpr;
+}
+
+// TODO: Add an accessor for the bit width.
+immediate bool is_bitfield(data_member_info var) {
+  return traits(var).is_bitfield;
+}
+
+// -------------------------------------------------------------------------- //
+// Member functions
+
+struct member_function_traits {
+  immediate explicit member_function_traits(unsigned n) 
+    : access(n),
+      kind(n >> 2),
+      is_static(n >> 4),
+      is_constexpr(n >> 5),
+      is_explicit(n >> 6),
+      is_virtual(n >> 7),
+      is_pure(n >> 8),
+      is_override(n >> 9),
+      is_final(n >> 10),
+      is_defined(n >> 11),
+      is_inline(n >> 12),
+      is_deleted(n >> 13),
+      is_defaulted(n >> 14)
+  { }
+
+  unsigned access : 2;
+  unsigned kind : 2;
+  unsigned is_static : 1;
+  unsigned is_constexpr : 1;
+  unsigned is_explicit : 1;
+  unsigned is_virtual : 1;
+  unsigned is_pure : 1;
+  unsigned is_override : 1;
+  unsigned is_final : 1;
+  unsigned is_defined : 1;
+  unsigned is_inline : 1;
+  unsigned is_deleted : 1;
+  unsigned is_defaulted : 1;
+};
+
+immediate member_function_traits traits(member_function_info fn) {
+  return member_function_traits(__reflect_traits(fn));
+}
+
+immediate bool is_public(member_function_info fn) {
+  return traits(fn).access == public_access;
+}
+
+immediate bool is_private(member_function_info fn) {
+  return traits(fn).access == private_access;
+}
+
+immediate bool is_protected(member_function_info fn) {
+  return traits(fn).access == protected_access;
+}
+
+immediate bool is_normal(member_function_info fn) {
+  return traits(fn).kind == normal;
+}
+
+immediate bool is_constructor(member_function_info fn) {
+  return traits(fn).kind == constructor;
+}
+
+immediate bool is_destructor(member_function_info fn) {
+  return traits(fn).kind == destructor;
+}
+
+immediate bool is_conversion(member_function_info fn) {
+  return traits(fn).kind == conversion;
+}
+
+immediate bool is_static(member_function_info fn) {
+  return traits(fn).is_static;
+}
+
+immediate bool is_constexpr(member_function_info fn) {
+  assert(!is_destructor(fn));
+  return traits(fn).is_constexpr;
+}
+
+immediate bool is_explicit(member_function_info fn) {
+  assert(is_constructor(fn) || is_conversion(fn));
+  return traits(fn).is_explicit;
+}
+
+immediate bool is_virtual(member_function_info fn) {
+  assert(!is_constructor(fn));
+  return traits(fn).is_virtual;
+}
+
+immediate bool is_pure_virtual(member_function_info fn) {
+  assert(!is_constructor(fn));
+  return traits(fn).is_pure;
+}
+
+immediate bool is_override(member_function_info fn) {
+  assert(!is_constructor(fn));
+  return traits(fn).is_override;
+}
+
+immediate bool is_final(member_function_info fn) {
+  assert(!is_constructor(fn));
+  return traits(fn).is_final;
+}
+
+immediate bool is_defined(member_function_info fn) {
+  return traits(fn).is_defined;
+}
+
+immediate bool is_inline(member_function_info fn) {
+  return traits(fn).is_inline;
+}
+
+immediate bool is_deleted(member_function_info fn) {
+  return traits(fn).is_deleted;
+}
+
+immediate bool is_defaulted(member_function_info fn) {
+  assert(is_constructor(fn) || is_destructor(fn));
+  return traits(fn).is_defaulted;
+}
+
+// -------------------------------------------------------------------------- //
+// Enumerations
+
+struct enum_traits {
+  immediate explicit enum_traits(unsigned n) 
+    : linkage(n),
+      access(n >> 2),
+      is_scoped(n >> 4)
+  { }
+  
+  unsigned linkage : 2;
+  unsigned access : 2;
+  unsigned is_scoped : 1;
+};
+
+immediate enum_traits traits(enum_info e) {
+  return enum_traits(__reflect_traits(e));
+}
+
+immediate bool has_linkage(enum_info e) {
+  return traits(e).linkage != no_linkage;
+}
+
+immediate bool has_external_linkage(enum_info e) {
+  return traits(e).linkage == external_linkage;
+}
+
+immediate bool has_internal_linkage(enum_info e) {
+  return traits(e).linkage == internal_linkage;
+}
+
+immediate bool has_access(enum_info e) {
+  return traits(e).access != no_access;
+}
+
+immediate bool is_public(enum_info e) {
+  assert(has_access(e));
+  return traits(e).access == public_access;
+}
+
+immediate bool is_private(enum_info e) {
+  assert(has_access(e));
+  return traits(e).access == private_access;
+}
+
+immediate bool is_protected(enum_info e) {
+  assert(has_access(e));
+  return traits(e).access == protected_access;
+}
+
+immediate bool is_scoped(enum_info e) {
+  return traits(e).is_scoped;
+}
+
+// -------------------------------------------------------------------------- //
+// Enumerators
+
+struct enumerator_traits {
+  immediate explicit enumerator_traits(unsigned n) 
+    : access(n)
+  { }
+  
+  unsigned access : 2;
+};
+
+immediate enumerator_traits traits(enumerator_info e) {
+  return enumerator_traits(__reflect_traits(e));
+}
+
+immediate bool has_access(enumerator_info e) {
+  return traits(e).access != no_access;
+}
+
+immediate bool is_public(enumerator_info e) {
+  assert(has_access(e));
+  return traits(e).access == public_access;
+}
+
+immediate bool is_private(enumerator_info e) {
+  assert(has_access(e));
+  return traits(e).access == private_access;
+}
+
+immediate bool is_protected(enumerator_info e) {
+  assert(has_access(e));
+  return traits(e).access == protected_access;
+}
+
+// -------------------------------------------------------------------------- //
+// Access specifiers
+
+struct access_traits {
+  immediate explicit access_traits(unsigned n) 
+    : access(n)
+  { }
+  
+  unsigned access : 2;
+};
+
+immediate access_traits traits(access_specifier_info e) {
+  return access_traits(__reflect_traits(e));
+}
+
+immediate bool has_access(access_specifier_info e) {
+  return traits(e).access != no_access;
+}
+
+immediate bool is_public(access_specifier_info e) {
+  assert(has_access(e));
+  return traits(e).access == public_access;
+}
+
+immediate bool is_private(access_specifier_info e) {
+  assert(has_access(e));
+  return traits(e).access == private_access;
+}
+
+immediate bool is_protected(access_specifier_info e) {
+  assert(has_access(e));
+  return traits(e).access == protected_access;
+}
+
 
 #if 0
 // -------------------------------------------------------------------------- //

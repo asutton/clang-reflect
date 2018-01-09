@@ -315,7 +315,7 @@ static bool CheckReflectionOperand(Sema &SemaRef, Expr *E) {
     return false;
   }
 
-  // FIXME: This is admits false positives. We should really test that
+  // FIXME: This admits false positives. We should really test that
   // the Source type is one of the meta::*_info types. 
 
   return true;
@@ -325,10 +325,10 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                          ReflectionTrait Trait,
                                          ArrayRef<Expr *> Args,
                                          SourceLocation RParenLoc) {
-  QualType ObjectTy = LookupMetaDecl(*this, "reflection_info", TraitLoc);
+  QualType ObjectTy = LookupMetaDecl(*this, "construct_info", TraitLoc);
   if (ObjectTy.isNull())
     return ExprError();
-  QualType KindTy = LookupMetaDecl(*this, "reflection_kind", TraitLoc);
+  QualType KindTy = LookupMetaDecl(*this, "construct_kind", TraitLoc);
   if (KindTy.isNull())
     return ExprError();
 
