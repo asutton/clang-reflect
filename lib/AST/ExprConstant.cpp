@@ -5323,10 +5323,30 @@ static bool SetReflectedAddress(EvalInfo &Info, Reflection R,
   return true;
 }
 
+/// Returns true if E is actually a meta object.
+///
+/// FIXME: This is really flimsy. This should be a simple, straightforward
+/// test. In fact, it would be ideal the reflection type were a fundamental
+/// type instead of an enum.
+static bool IsMetaObject(ASTContext &Ctx, EnumDecl *E) {
+  DeclContext *DC = E->getDeclContext();
+  if (NamespaceDecl *NS = dyn_cast<NamespaceDecl>(DC)) {
+    if (NS->isInline())
+      DC = NS->getDeclContext();
+  }
+  if (!isa<NamespaceDecl>(DC))
+    return false;
+  NamespaceDecl *NS = cast<NamespaceDecl>(DC);
+  IdentifierInfo *ObjectId = &Ctx.Idents.get("object");
+  IdentifierInfo *MetaId = &Ctx.Idents.get("meta");
+  return E->getIdentifier() == ObjectId && NS->getIdentifier() == MetaId;
+}
+
 static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E, 
                   SmallVectorImpl<APValue> &Args) {
   Expr *E0 = E->getArg(0);
   QualType T = E0->getType();
+
   if (T->isIntegralType(Info.Ctx)) {
     llvm::errs() << Args[0].getInt().getExtValue() << '\n';
     return true;
@@ -5344,23 +5364,31 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
     std::string NonQuote(Buf.str(), 1, Buf.size() - 2);
     llvm::errs() << NonQuote << '\n';
     return true;
-  } else if (T->isRecordType()) {
-    Reflection R = Args[0];
-    if (R.isNull()) {
-      llvm::errs() << "null construct\n";
-    } else if (const Decl *D = R.getAsDeclaration()) {
-      D->print(llvm::errs());
-      llvm::errs() << '\n';
-    } else if (const Type *T = R.getAsType()) {
-      QualType QT(T, 0);
-      QT.print(llvm::errs(), Info.Ctx.getPrintingPolicy());
-      llvm::errs() << '\n';
+  }  else if (const EnumType *EnumTy = dyn_cast<EnumType>(T.getTypePtr())) {
+    EnumDecl *Enum = EnumTy->getDecl();
+    if (IsMetaObject(Info.Ctx, Enum)) {
+      Reflection R;
+      R.putConstantValue(Args[0]);
+      if (R.isNull())
+        llvm::errs() << "<null>\n";
+      else if (const Decl *D = R.getAsDeclaration()) {
+        D->print(llvm::errs(), Info.Ctx.getPrintingPolicy());
+        llvm::errs() << '\n';
+      } else if (const Type* T = R.getAsType()) {
+        QualType QT(T, 0);
+        QT.print(llvm::errs(), Info.Ctx.getPrintingPolicy());
+        llvm::errs() << '\n';
+      }
+      return true;
     } else {
-      // FIXME: Provide a better diagnostic. Should be 'cannot print'.
-      Info.CCEDiag(E0, diag::note_invalid_subexpr_in_const_expr);
+      // FIXME: Lookup the value in the enum? Note that it might not
+      // be unique.
+      llvm::errs() << Args[0].getInt().getExtValue() << '\n';
+      return true;
     }
-    return true;
   }
+
+  // FIXME: Handle reflections.
 
   // FIXME: Provide a better diagnostic.
   Info.CCEDiag(E0, diag::note_invalid_subexpr_in_const_expr);
@@ -5373,6 +5401,18 @@ MakeString(ASTContext& Ctx, StringRef Str, SourceLocation Loc) {
                                             llvm::APInt(32, Str.size() + 1), 
                                             ArrayType::Normal, 0);
   return StringLiteral::Create(Ctx, Str, StringLiteral::Ascii, false, StrTy, Loc);
+}
+
+/// Returns either the lexical or semantic context.
+static Decl *
+GetSemanticOrLexicalOwner(const Decl *D, bool Semantic) {
+  if (!D)
+    return nullptr;
+  const DeclContext *DC = 
+    Semantic ? D->getDeclContext() : D->getLexicalDeclContext();
+  if (DC)
+    return Decl::castFromDeclContext(DC);
+  return nullptr;
 }
 
 template<typename Derived>
@@ -5421,13 +5461,11 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       return DerivedSuccess(APValue(Index), E);
     }
     
-    case URT_ReflectContext: {
+    case URT_ReflectContext: 
+    case URT_ReflectHome: {
       if (const Decl *D = R.getAsDeclaration()) {
-        Decl *Owner;
-        if (const DeclContext *DC = D->getDeclContext())
-          Owner = Decl::castFromDeclContext(D->getDeclContext());
-        else
-          Owner = nullptr;
+        bool Which = (E->getTrait() == URT_ReflectContext);
+        Decl *Owner = GetSemanticOrLexicalOwner(D, Which);
         APValue Result;
         MakeReflection(Info.Ctx, Owner, Result);
         return DerivedSuccess(Result, E);
@@ -5436,9 +5474,39 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       return false;
     }
 
-    case URT_ReflectHome:
-    case URT_ReflectNext:
-      llvm_unreachable("not implemented");
+    case URT_ReflectBegin:
+    case URT_ReflectEnd: {
+      if (const Decl *D = R.getAsDeclaration()) {
+        if (const DeclContext *DC = dyn_cast<DeclContext>(D)) {
+          Decl *Iter;
+          if (E->getTrait() == URT_ReflectBegin) {
+            auto I = DC->decls_begin();
+            Iter = (I != DC->decls_end()) ? *I : nullptr;
+          } else {
+            Iter = nullptr;
+          }
+          APValue Result;
+          MakeReflection(Info.Ctx, Iter, Result);
+          return DerivedSuccess(Result, E);
+        }
+        CCEDiag(E->getArg(0), diag::note_reflection_not_nested) << 0;
+        return false;
+      }
+      CCEDiag(E->getArg(0), diag::note_reflection_not_declared) << 0;
+      return false;
+    }
+
+    case URT_ReflectNext: {
+      if (const Decl *D = R.getAsDeclaration()) {
+        const Decl *Next = D->getNextDeclInContext();
+        APValue Result;
+        MakeReflection(Info.Ctx, Next, Result);
+        return DerivedSuccess(Result, E);
+      }
+      CCEDiag(E->getArg(0), diag::note_reflection_not_declared) << 0;
+      return false;
+
+    }
 
     case URT_ReflectName: {
       if (const NamedDecl *ND = dyn_cast_or_null<NamedDecl>(R.getAsDeclaration())) {

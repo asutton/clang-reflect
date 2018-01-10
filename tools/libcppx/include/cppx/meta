@@ -190,9 +190,57 @@ immediate object home(object x) {
   return __reflect_home(x);
 }
 
-// Returns the subsequent declaration (or null).
-immediate object next(object x) {
-  return __reflect_next(x);
+class iterator {
+public:
+  using value_type = object;
+  using reference = object;
+  using pointer = object;
+  using difference_type = std::ptrdiff_t;
+  using iterator_category = std::forward_iterator_tag;
+
+  immediate iterator() : curr() { }
+  immediate iterator(object x) : curr(x) { }
+
+  immediate object operator*() const { return curr; }
+  immediate object operator->() const { return curr; }
+
+  immediate iterator& operator++() { 
+    if (!is_null(curr))
+      curr = __reflect_next(curr); 
+    return *this;
+  }
+
+  immediate iterator operator++(int) {
+    iterator tmp = *this;
+    operator++();
+    return tmp;
+  }
+
+  immediate bool operator==(iterator i) const { return curr == i.curr; }
+  immediate bool operator!=(iterator i) const { return curr != i.curr; }
+
+private:  
+  object curr;
+};
+
+/// Returns the first sub-object of x. Objects behave as forward iterators.
+immediate iterator begin(object x) {
+  return iterator(__reflect_begin(x));
+}
+
+/// Returns a null sub-object of x, indicating the end of a sequence.
+///
+/// FIXME: This seems to mean that we don't actually need __reflect_end.
+immediate iterator end(object x) {
+  return iterator();
+}
+
+/// Returns the 
+immediate std::ptrdiff_t distance(iterator first, iterator last) {
+  std::ptrdiff_t n = 0;
+  for (; first != last; ++first)
+    ++n;
+  return n;
 }
 
 // -------------------------------------------------------------------------- //

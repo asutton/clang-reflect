@@ -2236,6 +2236,10 @@ static const char* GetReflectionTraitName(const CXXReflectionTraitExpr *E) {
     return "context";
   case URT_ReflectHome:
     return "home";
+  case URT_ReflectBegin:
+    return "begin";
+  case URT_ReflectEnd:
+    return "end";
   case URT_ReflectNext:
     return "next";
   case URT_ReflectName:

@@ -108,6 +108,8 @@ namespace clang {
     URT_ReflectIndex,
     URT_ReflectContext,
     URT_ReflectHome,
+    URT_ReflectBegin,
+    URT_ReflectEnd,
     URT_ReflectNext,
     URT_ReflectName,
     URT_ReflectType,

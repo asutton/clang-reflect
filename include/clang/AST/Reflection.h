@@ -58,8 +58,11 @@ private:
   ReflectionKind Kind;
   const void* Ptr;
 
+  /// Initialize the reflection. If the pointer is null, then ensure that
+  /// the entire entity is going to be null (i.e., special with a null ptr).
   Reflection(ReflectionKind K, const void* P)
-    : Kind(K), Ptr(P) { }
+    : Kind(P ? K : REK_special), Ptr(P) 
+  { }
 
 public:
   /// \brief Constructs an empty reflection.
@@ -102,7 +105,7 @@ public:
   const void* getOpaquePointer() const { return Ptr; }
 
   /// \brief True if the reflection is null.
-  bool isNull() const { return Ptr == nullptr; }
+  bool isNull() const { return Kind == REK_special && Ptr == nullptr; }
 
   /// \brief True if this is a reflected declaration.
   bool isDeclaration() const { return Kind == REK_declaration; }

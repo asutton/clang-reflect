@@ -86,73 +86,6 @@ static QualType LookupMetaDecl(Sema &SemaRef, const char* Name,
   return SemaRef.Context.getTagDeclType(TD);
 }
 
-static QualType GetInfoType(Sema &SemaRef, SourceLocation Loc, const Decl *D)
-{
-  switch (D->getKind()) {
-  case Decl::TranslationUnit:
-    return LookupMetaDecl(SemaRef, "translation_unit_info", Loc);
-  case Decl::Namespace:
-    return LookupMetaDecl(SemaRef, "namespace_info", Loc);
-  case Decl::Var:
-    if (cast<VarDecl>(D)->isStaticDataMember())
-      return LookupMetaDecl(SemaRef, "data_member_info", Loc);
-    else
-      return LookupMetaDecl(SemaRef, "variable_info", Loc);
-  case Decl::Function:
-    return LookupMetaDecl(SemaRef, "function_info", Loc);
-  case Decl::ParmVar:
-    return LookupMetaDecl(SemaRef, "parameter_info", Loc);
-  case Decl::CXXRecord:
-    return LookupMetaDecl(SemaRef, "class_info", Loc);
-  case Decl::Field:
-    return LookupMetaDecl(SemaRef, "data_member_info", Loc);
-  case Decl::CXXMethod:
-  case Decl::CXXConstructor:
-  case Decl::CXXDestructor:
-  case Decl::CXXConversion:
-    return LookupMetaDecl(SemaRef, "member_function_info", Loc);
-  case Decl::Enum:
-    return LookupMetaDecl(SemaRef, "enum_info", Loc);
-  case Decl::EnumConstant:
-    return LookupMetaDecl(SemaRef, "enumerator_info", Loc);
-  case Decl::AccessSpec:
-    return LookupMetaDecl(SemaRef, "access_specifier_info", Loc);
-  default:
-    llvm_unreachable("unknown declaration reflection");
-  }
-}
-
-// FIXME: Finish implementing this.
-static QualType GetInfoType(Sema &SemaRef, SourceLocation Loc, const Type* T) {
-  switch (T->getTypeClass()) {
-  case Type::Builtin: {
-    const BuiltinType *BT = cast<BuiltinType>(T);
-    if (BT->isVoidType())
-      return LookupMetaDecl(SemaRef, "void_type_info", Loc);
-    if (BT->isIntegralType(SemaRef.Context))
-      return LookupMetaDecl(SemaRef, "integer_type_info", Loc);
-    if (BT->isRealFloatingType())
-      return LookupMetaDecl(SemaRef, "floating_point_type_info", Loc);
-    llvm_unreachable("unknown built type reflection");
-  }
-  case Type::Pointer:
-      return LookupMetaDecl(SemaRef, "pointer_type_info", Loc);
-  case Type::LValueReference:
-  case Type::RValueReference:
-      return LookupMetaDecl(SemaRef, "reference_info", Loc);
-  default:
-    llvm_unreachable("unknown type reflection");
-  }
-}
-
-static QualType GetInfoType(Sema &SemaRef, SourceLocation Loc, Reflection R) {
-  if (const Decl *D = R.getAsDeclaration())
-    return GetInfoType(SemaRef, Loc, D);
-  else if (const Type *T = R.getAsType())
-    return GetInfoType(SemaRef, Loc, T);
-  llvm_unreachable("unknown reflection kind");
-}
-
 /// Lookup the declaration named by SS and Id. Populates the the kind
 /// and entity with the encoded reflection of the named entity.
 bool Sema::ActOnReflectedId(CXXScopeSpec &SS, SourceLocation IdLoc,
@@ -346,6 +279,8 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
     
     case URT_ReflectContext: 
     case URT_ReflectHome: 
+    case URT_ReflectBegin: 
+    case URT_ReflectEnd: 
     case URT_ReflectNext: 
     case URT_ReflectType: // meta::object
       ResultTy = ObjectTy;
@@ -442,54 +377,6 @@ ExprResult Sema::BuildCXXReflectedValueExpression(SourceLocation Loc,
     return ExprError();
   }
   
-#if 0
-  Reflection Refl;
-  if (!Context.GetReflection(Handle, Refl)) {
-    Diag(E->getExprLoc(), diag::err_reflection_not_known);
-    return ExprError();
-  }
-
-  if (Decl *D = Refl.getAsDeclaration()) {
-    if (isa<CXXConstructorDecl>(D)) {
-      Diag(E->getExprLoc(), diag::err_cannot_project_value) << 0;
-      return ExprError();
-    }
-    if (isa<CXXDestructorDecl>(D)) {
-      Diag(E->getExprLoc(), diag::err_cannot_project_value) << 1;
-      return ExprError();
-    }
-
-    if (ValueDecl *VD = dyn_cast<ValueDecl>(D)) {
-      CXXScopeSpec SS;
-      DeclarationNameInfo DNI(VD->getDeclName(), VD->getLocation());
-      ExprResult Ref = BuildDeclarationNameExpr(SS, DNI, VD);
-      if (Ref.isInvalid())
-        return ExprError();
-
-      // The "value" of member variables and non-static data members must be
-      // addresses. Compute these as special cases.
-      if (FieldDecl *Field = dyn_cast<FieldDecl>(VD)) {
-        QualType Class = Context.getTagDeclType(Field->getParent());
-        QualType Ptr = Context.getMemberPointerType(Field->getType(), 
-                                                      Class.getTypePtr());
-        return new (Context) UnaryOperator(Ref.get(), UO_AddrOf, Ptr, VK_RValue, 
-                                           OK_Ordinary, Loc);
-      }
-      else if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(VD)) {
-        if (Method->isInstance()) {
-          QualType Class = Context.getTagDeclType(Method->getParent());
-          QualType Ptr = Context.getMemberPointerType(Method->getType(), 
-                                                      Class.getTypePtr());
-          return new (Context) UnaryOperator(Ref.get(), UO_AddrOf, Ptr, 
-                                             VK_RValue, OK_Ordinary, Loc);
-        }
-      }
-      
-      return Ref.get();
-    }
-  }
-#endif
-
   Diag(E->getExprLoc(), diag::err_expression_not_type_reflection);
   return ExprError();
 }

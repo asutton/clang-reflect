@@ -7642,11 +7642,13 @@ EvaluateImmediateFunction(Sema &SemaRef, Expr *E)
 ExprResult
 Sema::FinishCallExpr(Expr *E)
 {
-  // Don't evaluate immediate functions within the body of another immediate
+  // Don't evaluate immediate functions within the body of a constexpr
   // function. The arguments aren't known to be (but may be assumed to be?)
   // constant expressions.
+  //
+  // FIXME: Restrict this to just immediate functions?
   if (FunctionDecl *Fn = getCurFunctionDecl()) {
-    if (Fn->isImmediate())
+    if (Fn->isConstexpr())
       return E;
   }
 

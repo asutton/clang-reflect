@@ -286,6 +286,8 @@ def note_empty_reflection : Note<
   "cannot compute properties of an empty reflection">;
 def note_reflection_not_declared : Note<
   "reflected %select{entity|construct}0 is not a declaration">;
+def note_reflection_not_nested : Note<
+  "reflected declaration does not contain other declarations">;
 def note_reflection_not_named : Note<
   "reflected %select{entity|construct}0 does not have a name">;
 def note_reflection_not_typed : Note<
