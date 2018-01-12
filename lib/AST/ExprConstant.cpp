@@ -5346,7 +5346,6 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
                   SmallVectorImpl<APValue> &Args) {
   Expr *E0 = E->getArg(0);
   QualType T = Info.Ctx.getCanonicalType(E0->getType());
-
   if (T->isIntegralType(Info.Ctx)) {
     llvm::errs() << Args[0].getInt().getExtValue() << '\n';
     return true;
@@ -5369,16 +5368,18 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
     if (IsMetaObject(Info.Ctx, Enum)) {
       Reflection R;
       R.putConstantValue(Args[0]);
-      if (R.isNull())
+      if (R.isNull()) {
         llvm::errs() << "<null>\n";
-      else if (const Decl *D = R.getAsDeclaration()) {
+      } else if (const Decl *D = R.getAsDeclaration()) {
         D->print(llvm::errs(), Info.Ctx.getPrintingPolicy());
-        llvm::errs() << '\n';
       } else if (const Type* T = R.getAsType()) {
         QualType QT(T, 0);
         QT.print(llvm::errs(), Info.Ctx.getPrintingPolicy());
-        llvm::errs() << '\n';
+      } else {
+        // FIXME: we should be able to print things.
+        llvm_unreachable("unknown reflection");
       }
+      llvm::errs() << '\n';
       return true;
     } else {
       // FIXME: Lookup the value in the enum? Note that it might not

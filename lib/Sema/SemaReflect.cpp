@@ -124,6 +124,7 @@ bool Sema::ActOnReflectedType(Declarator &D, unsigned &Kind,
                               ParsedReflectionPtr &Entity) {
   TypeSourceInfo *TSI = GetTypeForDeclarator(D, CurScope);
   QualType T = TSI->getType();
+  // FIXME: There are other types that can be declarations.
   if (TagDecl *TD = T->getAsTagDecl()) {
     // Handle elaborated type specifiers as if they were declarations.
     Entity = TD;

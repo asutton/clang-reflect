@@ -552,6 +552,7 @@ namespace  {
     void VisitSizeOfPackExpr(const SizeOfPackExpr *Node);
     void
     VisitCXXDependentScopeMemberExpr(const CXXDependentScopeMemberExpr *Node);
+    void VisitCXXReflectExpr(const CXXReflectExpr *Node);
     void VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *Node);
 
     // ObjC
@@ -2255,6 +2256,14 @@ static const char* GetReflectionTraitName(const CXXReflectionTraitExpr *E) {
   case URT_ReflectPrint:
     return "print";
   }
+}
+
+void ASTDumper::VisitCXXReflectExpr(const CXXReflectExpr *Node) {
+  VisitExpr(Node);
+  if (const Decl *D = Node->getReflectedDeclaration())
+    dumpDecl(D);
+  else if (const Type *T = Node->getReflectedType())
+    dumpType(QualType(T, 0));
 }
 
 void ASTDumper::VisitCXXReflectionTraitExpr(
