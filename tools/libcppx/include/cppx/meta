@@ -244,6 +244,14 @@ immediate std::ptrdiff_t distance(iterator first, iterator last) {
 }
 
 // -------------------------------------------------------------------------- //
+// Traversal queries
+
+/// True if x is a member of a class.
+immediate bool is_class_member(meta::object x) {
+  return is_class(parent(x));
+}
+
+// -------------------------------------------------------------------------- //
 // Declaration traits
 
 struct namespace_traits {
@@ -530,6 +538,19 @@ immediate bool has_access(object x) {
     case enumerator_decl:
       return enumerator_traits(x).access != no_access;
   }
+}
+
+/// True if x's access specifier is determined by the default access of
+/// the enclosing class.
+constexpr bool has_default_access(meta::object x) {
+  assert(is_class_member(x));
+  for (meta::object m : parent(x)) {
+    if (is_access_specifier(m))
+      return false;
+    if (m == x)
+      return true;
+  }
+  __builtin_unreachable();
 }
 
 immediate bool is_public(object x) {
