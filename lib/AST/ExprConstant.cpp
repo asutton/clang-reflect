@@ -5345,7 +5345,7 @@ static bool IsMetaObject(ASTContext &Ctx, EnumDecl *E) {
 static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E, 
                   SmallVectorImpl<APValue> &Args) {
   Expr *E0 = E->getArg(0);
-  QualType T = E0->getType();
+  QualType T = Info.Ctx.getCanonicalType(E0->getType());
 
   if (T->isIntegralType(Info.Ctx)) {
     llvm::errs() << Args[0].getInt().getExtValue() << '\n';
@@ -5387,8 +5387,6 @@ static bool Print(EvalInfo &Info, const CXXReflectionTraitExpr *E,
       return true;
     }
   }
-
-  // FIXME: Handle reflections.
 
   // FIXME: Provide a better diagnostic.
   Info.CCEDiag(E0, diag::note_invalid_subexpr_in_const_expr);
