@@ -773,6 +773,27 @@ immediate bool is_scoped(object x) {
   return enum_traits(x).is_scoped;
 }
 
+
+// The compiler object.
+struct compiler_type
+{
+  static constexpr void print(const char* str) {
+    (void)__reflect_print(str);
+  }
+
+  static constexpr void print(std::intmax_t n) {
+    (void)__reflect_print(n);
+  }
+
+  // FIXME: This is really debugging output, not printing. We should probably
+  // add an intrinsic specifically for that purpose.
+  static constexpr void print(object x) {
+    (void)__reflect_print(x);
+  }
+};
+
+constexpr compiler_type compiler;
+
 } // inline namespace v1
 } // namespace meta
 } // namespace cppx

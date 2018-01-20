@@ -1,3 +1,5 @@
+// RUN: %clang -std=c++1z %s
+
 #include <cppx/meta>
 // #include <cppx/compiler>
 
@@ -307,4 +309,21 @@ int main(int argc, char* argv[]) {
     static_assert(kind(r) == meta::enumerator_decl);
     static_assert(has_access(r) == false);
   }
+
+}
+
+// Check dependent reflexpr and instantiation
+
+template<typename T>
+constexpr int test() {
+  meta::object x = reflexpr(T);
+  (void)__reflect_print(x); // Generates output.
+  return 0;
+}
+
+struct S { };
+
+void test_templates() {
+  constexpr int x1 = test<int>();
+  constexpr int x2 = test<S>();
 }

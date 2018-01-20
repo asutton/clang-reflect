@@ -1,3 +1,5 @@
+// RUN: %clang -std=c++1z %s
+
 #include <cppx/meta>
 // #include <cppx/compiler>
 
