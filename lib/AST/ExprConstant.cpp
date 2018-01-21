@@ -5532,7 +5532,10 @@ bool ExprEvaluatorBase<Derived>::VisitCXXReflectionTraitExpr(
       if (const ValueDecl *VD = dyn_cast_or_null<ValueDecl>(R.getAsDeclaration())) {
         QualType CanTy = Info.Ctx.getCanonicalType(VD->getType());
         APValue Result;
-        MakeReflection(Info.Ctx, CanTy.getTypePtr(), Result);
+        if (TagDecl *TD = CanTy->getAsTagDecl())
+          MakeReflection(Info.Ctx, TD, Result);
+        else
+          MakeReflection(Info.Ctx, CanTy.getTypePtr(), Result);
         return DerivedSuccess(Result, E);
       }
       CCEDiag(E->getArg(0), diag::note_reflection_not_typed) << 0;

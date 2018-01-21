@@ -178,7 +178,8 @@ immediate bool is_enumerator(object x) {
   return kind(x) == enumerator_decl;
 }
 
-// Traversal
+// -------------------------------------------------------------------------- //
+// Traversal queries
 
 // Returns the lexical context of the declaration.
 immediate object parent(object x) {
@@ -249,6 +250,14 @@ immediate std::ptrdiff_t distance(iterator first, iterator last) {
 /// True if x is a member of a class.
 immediate bool is_class_member(meta::object x) {
   return is_class(parent(x));
+}
+
+// -------------------------------------------------------------------------- //
+// Type
+
+/// Returns the reflected type of a variable or function.
+immediate meta::object type(meta::object x) {
+  return __reflect_type(x);
 }
 
 // -------------------------------------------------------------------------- //

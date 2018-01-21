@@ -225,9 +225,12 @@ static bool CheckReflectionOperand(Sema &SemaRef, Expr *E) {
   if (Source->isReferenceType()) 
     Source = Source->getPointeeType();  
   Source = Source.getUnqualifiedType();
+  Source = SemaRef.Context.getCanonicalType(Source);
+
+  QualType Expected = LookupMetaDecl(SemaRef, "object", E->getExprLoc());
 
   // FIXME: We should cache meta::object and simply compare against that.
-  if (Source != LookupMetaDecl(SemaRef, "object", E->getExprLoc())) {
+  if (Source != Expected) {
     SemaRef.Diag(E->getLocStart(), diag::err_reflection_trait_wrong_type) 
         << Source;
     return false;
