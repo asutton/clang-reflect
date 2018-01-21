@@ -14,6 +14,7 @@ using namespace cppx;
 // }
 
 struct S { };
+struct S2;
 
 constexpr int test() {
   int local = 0;
@@ -43,10 +44,20 @@ constexpr meta::object get_type()
   return reflexpr(S);
 }
 
+template<typename T, meta::object X = reflexpr(T)>
+T check()
+{
+  constexpr int dummy = (meta::compiler.print(X), 0);
+  typename(X) var = 0;
+  return var + 42;
+}
+
 typename(get_type()) global;
 
 int main(int argc, const char* argv[]) {
   constexpr int n = test();
-  
   constexpr int k = (meta::compiler.print(reflexpr(global)), 0);
+
+  assert(check<int>() == 42);
+  assert(check<const int>() == 42);
 }
