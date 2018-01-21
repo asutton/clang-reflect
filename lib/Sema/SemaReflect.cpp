@@ -406,7 +406,7 @@ QualType Sema::BuildReflectedType(SourceLocation TypenameLoc, Expr *E) {
     return Context.getReflectedType(E, Context.DependentTy);
 
   // The operand must be a reflection.
-  if (!CheckReflectionType(*this, E->getType(), E->getExprLoc()))
+  if (!CheckReflectionOperand(*this, E))
     return QualType();
 
   // Evaluate the reflection.
@@ -420,36 +420,28 @@ QualType Sema::BuildReflectedType(SourceLocation TypenameLoc, Expr *E) {
     return QualType();
   }
 
-  // Decode the reflected value.
-#if 0
-  Reflection Refl;
-  const APValue &MetaData = Result.Val.getStructField(0);
-  const APValue &Field = MetaData.getStructField(1);
-  std::uintptr_t Handle = Field.getInt().getExtValue();
-  if (!Handle) {
-    Diag(E->getExprLoc(), diag::err_empty_type_reflection);
-    return QualType();
-  }
-  else if (!Context.GetReflection(Handle, Refl)) {
-    Diag(E->getExprLoc(), diag::err_reflection_not_known);
+  Reflection R;
+  R.putConstantValue(Result.Val);
+  if (R.isNull()) {
+    Diag(E->getExprLoc(), diag::err_empty_type_reflection);    
     return QualType();
   }
 
-  QualType Computed;
-  if (Decl *D = Refl.getAsDeclaration()) {
-    if (ValueDecl *VD = dyn_cast<ValueDecl>(D))
-      Computed = VD->getType();
-    if (TypeDecl *TD = dyn_cast<TypeDecl>(D))
-      Computed = Context.getTypeDeclType(TD);
-  } else if (Type *T = Refl.getAsType()) {
-    Computed = QualType(T, 0);
+  // Get the type of the reflected entity.
+  QualType Reflected; 
+  if (const Type* T = R.getAsType()) {
+    Reflected = QualType(T, 0);
+  } else if (const Decl* D = R.getAsDeclaration()) {
+    if (const TypeDecl *TD = dyn_cast<TypeDecl>(D)) {
+      Reflected = Context.getTypeDeclType(TD);
+    } else {
+      Diag(E->getExprLoc(), diag::err_expression_not_type_reflection);
+      return QualType();
+    }
+  } else {
+    // FIXME: Handle things like base classes.
+    llvm_unreachable("unknown reflection");
   }
 
-  if (Computed.isNull()) {
-    Diag(E->getExprLoc(), diag::err_expression_not_type_reflection);
-    return QualType();  
-  }
-  return Context.getReflectedType(E, Computed);
-#endif
-  return QualType();
+  return Context.getReflectedType(E, Reflected);
 }

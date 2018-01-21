@@ -855,10 +855,14 @@ void TypePrinter::printDecltypeAfter(const DecltypeType *T, raw_ostream &OS) { }
 
 void TypePrinter::printReflectedBefore(const ReflectedType *T, 
                                        raw_ostream &OS) { 
-  OS << "typename(";
-  if (T->getReflection())
-    T->getReflection()->printPretty(OS, nullptr, Policy);
-  OS << ')';
+  if (T->isDependentType()) {
+    OS << "typename(";
+    if (T->getReflection())
+      T->getReflection()->printPretty(OS, nullptr, Policy);
+    OS << ')';
+  } else {
+    print(T->getUnderlyingType(), OS, StringRef());
+  }
   spaceBeforePlaceHolder(OS);
 }
 void TypePrinter::printReflectedAfter(const ReflectedType *T, 
