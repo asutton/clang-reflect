@@ -316,28 +316,17 @@ ExprResult Sema::ActOnCXXReflectionTrait(SourceLocation TraitLoc,
                                               TraitLoc, Operands, RParenLoc);
 }
 
-// Check that T is one of the meta:: types. Returns false if not.
-static bool CheckReflectionType(Sema &SemaRef, QualType T, SourceLocation Loc) {
-  // The operand must be a reflection.
-  if (!T->isRecordType()) {
-    SemaRef.Diag(Loc, diag::err_expression_not_reflection);
-    return false;
-  }
-  CXXRecordDecl *Class = T->getAsCXXRecordDecl();
-
-  // The expression must be one of the meta::*_info classes. Detect this
-  // by searching for a 'T::construct', which is not canonical, but sufficient
-  // for now.
-  DeclarationNameInfo DNI(&SemaRef.Context.Idents.get("construct"), Loc);
-  LookupResult R(SemaRef, DNI, Sema::LookupMemberName);
-  SemaRef.LookupQualifiedName(R, Class);
-  if (!R.isSingleResult() || !R.getAsSingle<VarDecl>()) {
-    SemaRef.Diag(Loc, diag::err_expression_not_reflection);
-    return false;
-  }
-
-  return true;
+#if 0
+static Expr *MakePointerToMember(Sema &SemaRef, ValueDecl *D, QualType T) {
+  // TODO: This is a subset of what CreateBuiltinUnaryOp does, but for
+  // some reason, the result isn't being typed correctly.
+  DeclRefExpr *Ref = new (SemaRef.Context) DeclRefExpr(D, false, D->getType(),
+                                                       VK_LValue, KWLoc);
+  S.MarkDeclRefReferenced(Ref);
+  return new (S.Context) UnaryOperator(Ref, UO_AddrOf, T, VK_RValue, 
+                                      OK_Ordinary, KWLoc);
 }
+#endif
 
 ExprResult Sema::ActOnCXXReflectedValueExpression(SourceLocation Loc, 
                                                   Expr *Reflection) {
@@ -349,11 +338,10 @@ ExprResult Sema::BuildCXXReflectedValueExpression(SourceLocation Loc,
   // Don't act on dependent expressions, just preserve them.
   if (E->isTypeDependent() || E->isValueDependent())
     return new (Context) CXXReflectedValueExpr(E, Context.DependentTy,
-                                               VK_RValue, Loc);
+                                               VK_RValue, OK_Ordinary, Loc);
 
   // The operand must be a reflection.
-  if (E->getType() != Context.getUIntPtrType() &&
-      !CheckReflectionType(*this, E->getType(), E->getExprLoc()))
+  if (!CheckReflectionOperand(*this, E))
     return ExprError();
 
   // Evaluate the reflection.
@@ -367,22 +355,54 @@ ExprResult Sema::BuildCXXReflectedValueExpression(SourceLocation Loc,
     return ExprError();
   }
 
-  // Unpack the reflection.
-  std::uintptr_t Handle = 0;
-  if (E->getType() == Context.getUIntPtrType()) {
-    Handle = Result.Val.getInt().getExtValue();
-  } else {
-    const APValue &MetaData = Result.Val.getStructField(0);
-    const APValue &Field = MetaData.getStructField(1);
-    Handle = Field.getInt().getExtValue();
-  }
-  if (!Handle) {
-    Diag(E->getExprLoc(), diag::err_empty_type_reflection);
+  Reflection R;
+  R.putConstantValue(Result.Val);
+  if (R.isNull() || R.isType()) {
+    // FIXME: This is the wrong error.
+    Diag(E->getExprLoc(), diag::err_expression_not_value_reflection);    
     return ExprError();
   }
-  
-  Diag(E->getExprLoc(), diag::err_expression_not_type_reflection);
-  return ExprError();
+
+  // Build a declaration reference that would refer to the reflected entity.
+  Decl* D = const_cast<Decl*>(R.getDeclaration());
+  if (!isa<ValueDecl>(D)) {
+    Diag(E->getExprLoc(), diag::err_expression_not_value_reflection);
+    return ExprError();
+  }
+  ValueDecl *VD = cast<ValueDecl>(D);
+
+  // FIXME: We shouldn't be able to generate addresses for constructors,
+  // destructors, or local variables.
+
+  // Build a reference to the declaration.
+  CXXScopeSpec SS;
+  DeclarationNameInfo DNI(VD->getDeclName(), VD->getLocation());
+  ExprResult ER = BuildDeclarationNameExpr(SS, DNI, VD);
+  if (ER.isInvalid())
+    return ExprError();
+  Expr *Ref = ER.get();
+
+  // For data members and member functions, adjust the expression so that
+  // we evaluate a pointer-to-member, not the member itself.
+  if (FieldDecl *FD = dyn_cast<FieldDecl>(VD)) {
+    const Type *C = Context.getTagDeclType(FD->getParent()).getTypePtr();
+    QualType PtrTy = Context.getMemberPointerType(FD->getType(), C);
+    Ref = new (Context) UnaryOperator(Ref, UO_AddrOf, PtrTy, VK_RValue, 
+                                      OK_Ordinary, Loc);
+  } else if (CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(VD)) {
+    const Type *C = Context.getTagDeclType(MD->getParent()).getTypePtr();
+    QualType PtrTy = Context.getMemberPointerType(MD->getType(), C);
+    Ref = new (Context) UnaryOperator(Ref, UO_AddrOf, PtrTy, VK_RValue, 
+                                      OK_Ordinary, Loc);
+  }
+
+  // The type and category of the expression are those of an id-expression
+  // denoting the reflected entity. 
+  CXXReflectedValueExpr *Val = 
+      new (Context) CXXReflectedValueExpr(E, Ref->getType(), Ref->getValueKind(),
+                                          Ref->getObjectKind(), Loc);
+  Val->setReference(Ref);
+  return Val;
 }
 
 /// Evaluates the given expression and yields the computed type.

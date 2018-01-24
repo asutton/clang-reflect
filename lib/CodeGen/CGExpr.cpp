@@ -1168,6 +1168,9 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     LValueBaseInfo BI;
     return LValue::MakeAddr(Addr, T, getContext(), BI);
   }
+
+  case Expr::CXXReflectedValueExprClass:
+    return EmitLValue(cast<CXXReflectedValueExpr>(E)->getReference());
   }
 
 }

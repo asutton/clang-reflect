@@ -554,6 +554,7 @@ namespace  {
     VisitCXXDependentScopeMemberExpr(const CXXDependentScopeMemberExpr *Node);
     void VisitCXXReflectExpr(const CXXReflectExpr *Node);
     void VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *Node);
+    void VisitCXXReflectedValueExpr(const CXXReflectedValueExpr *Node);
 
     // ObjC
     void VisitObjCAtCatchStmt(const ObjCAtCatchStmt *Node);
@@ -2270,6 +2271,10 @@ void ASTDumper::VisitCXXReflectionTraitExpr(
     const CXXReflectionTraitExpr *Node) {
   VisitExpr(Node);
   OS << " " << GetReflectionTraitName(Node);
+}
+
+void ASTDumper::VisitCXXReflectedValueExpr(const CXXReflectedValueExpr *Node) {
+  VisitExpr(Node);
 }
 
 //===----------------------------------------------------------------------===//

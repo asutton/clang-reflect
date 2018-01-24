@@ -4472,8 +4472,8 @@ class CXXReflectedValueExpr : public Expr {
   SourceLocation Loc;
 public:
   CXXReflectedValueExpr(Expr *E, QualType T, ExprValueKind VK, 
-                        SourceLocation Loc)
-    : Expr(CXXReflectedValueExprClass, T, VK, OK_Ordinary, 
+                        ExprObjectKind OK, SourceLocation Loc)
+    : Expr(CXXReflectedValueExprClass, T, VK, OK, 
            E->isTypeDependent(),
            E->isValueDependent(), 
            E->isInstantiationDependent(),
@@ -4494,7 +4494,6 @@ public:
 
   /// \brief Sets the reference to the reflected entity.
   void setReference(Expr *E) {
-    assert(isa<DeclRefExpr>(E) && "expected a declaration reference");
     Reference = E;
   }
 

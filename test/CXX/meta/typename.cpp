@@ -58,6 +58,6 @@ int main(int argc, const char* argv[]) {
   constexpr int n = test();
   constexpr int k = (meta::compiler.print(reflexpr(global)), 0);
 
-  assert(check<int>() == 42);
-  assert(check<const int>() == 42);
+  static_assert(check<int>() == 42);
+  static_assert(check<const int>() == 42);
 }

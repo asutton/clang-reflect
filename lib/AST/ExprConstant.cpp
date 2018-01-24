@@ -4876,7 +4876,10 @@ public:
   bool VisitCXXReflectionTraitExpr(const CXXReflectionTraitExpr *E);
 
   bool VisitCXXReflectedValueExpr(const CXXReflectedValueExpr *E) {
-    llvm_unreachable("unimplemented");
+    APValue Result;
+    if (!Evaluate(Result, Info, E->getReference()))
+      return false;
+    return DerivedSuccess(Result, E);
   }
 
   /// Visit a value which is evaluated, but whose value is ignored.
