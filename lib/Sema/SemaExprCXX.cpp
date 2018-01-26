@@ -7649,9 +7649,14 @@ Sema::FinishCallExpr(Expr *E)
   // FIXME: Restrict this to just immediate functions?
   if (FunctionDecl *Fn = getCurFunctionDecl()) {
     if (Fn->isConstexpr())
-      return E;
+      return MaybeBindToTemporary(E);
   }
 
+  // Don't evaluate dependent expressions.
+  if (E->isTypeDependent() || E->isValueDependent())
+    return MaybeBindToTemporary(E);
+
+  // Actually evaluate the immediate function.
   if (CXXMemberCallExpr *MemCall = dyn_cast<CXXMemberCallExpr>(E)) {
     CXXMethodDecl *Method = MemCall->getMethodDecl();
     if (Method && Method->isImmediate()) {

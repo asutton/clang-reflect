@@ -45,7 +45,7 @@ constexpr meta::object get_type()
 }
 
 template<typename T, meta::object X = reflexpr(T)>
-T check()
+constexpr T check()
 {
   constexpr int dummy = (meta::compiler.print(X), 0);
   typename(X) var = 0;

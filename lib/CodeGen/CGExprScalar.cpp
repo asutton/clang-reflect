@@ -749,6 +749,7 @@ public:
     return Visit(E->getReference());
   }
 };
+
 }  // end anonymous namespace.
 
 //===----------------------------------------------------------------------===//

@@ -236,7 +236,18 @@ immediate iterator end(object x) {
   return iterator();
 }
 
-/// Returns the 
+/// Returns the first child of declaration context. This can be used with
+/// next() to traverse contexts as template arguments (iterators don't work
+/// as template arguments).
+immediate object front(object x) {
+  return __reflect_begin(x);
+}
+
+/// Returns the next object in the sequence.
+immediate object next(object x) {
+  return __reflect_next(x);
+}
+
 immediate std::ptrdiff_t distance(iterator first, iterator last) {
   std::ptrdiff_t n = 0;
   for (; first != last; ++first)
@@ -248,15 +259,22 @@ immediate std::ptrdiff_t distance(iterator first, iterator last) {
 // Traversal queries
 
 /// True if x is a member of a class.
-immediate bool is_class_member(meta::object x) {
+immediate bool is_class_member(object x) {
   return is_class(parent(x));
+}
+
+// -------------------------------------------------------------------------- //
+// Name
+
+immediate const char* name(object x) {
+  return __reflect_name(x);
 }
 
 // -------------------------------------------------------------------------- //
 // Type
 
 /// Returns the reflected type of a variable or function.
-immediate meta::object type(meta::object x) {
+immediate object type(object x) {
   return __reflect_type(x);
 }
 
@@ -551,9 +569,9 @@ immediate bool has_access(object x) {
 
 /// True if x's access specifier is determined by the default access of
 /// the enclosing class.
-constexpr bool has_default_access(meta::object x) {
+constexpr bool has_default_access(object x) {
   assert(is_class_member(x));
-  for (meta::object m : parent(x)) {
+  for (object m : parent(x)) {
     if (is_access_specifier(m))
       return false;
     if (m == x)

@@ -152,35 +152,32 @@ ExprResult Sema::ActOnCXXReflectExpression(SourceLocation KWLoc,
     // A type reflection is dependent if reflected T is dependent.
     IsValueDependent = T->isDependentType();
   } else if (const Decl *D = R.getAsDeclaration()) {
-    // A declaration reflection is value dependent if an id-expression 
-    // referring to that declaration is type or value dependent. Reflections
-    // of non-value declarations (e.g., namespaces) are never dependent.
     if (const ValueDecl *VD = dyn_cast<ValueDecl>(D)) {
+      // A declaration reflection is value dependent if an id-expression 
+      // referring to that declaration is type or value dependent. Reflections
+      // of non-value declarations (e.g., namespaces) are never dependent.
       // Build a fake id-expression in order to determine dependence. 
       Expr *E = new (Context) DeclRefExpr(const_cast<ValueDecl*>(VD), false, 
                                           VD->getType(), VK_RValue, KWLoc);
       IsValueDependent = E->isTypeDependent() || E->isValueDependent();
-    } 
+    } else if (const TypeDecl *TD = dyn_cast<TypeDecl>(D)) {
+      // A reflection of a type declaration is dependent if that type is
+      // dependent.
+      const Type* T = TD->getTypeForDecl();
+      IsValueDependent = T->isDependentType();
+    }
   }
 
-  // If the reflected declaration is in some way dependent, the reflection
-  // is type dependent.
-  if (IsValueDependent)
-    return new (Context) CXXReflectExpr(KWLoc, Context.DependentTy, R, 
-                                        LPLoc, RPLoc, VK_RValue, 
-                                        false, 
-                                        IsValueDependent,
-                                        IsValueDependent,
-                                        /*containsUnexpandedPacks=*/false);
-
-  // The type of reflexpr is meta::object.
+  // The type of reflexpr is always meta::object.
   QualType Ty = LookupMetaDecl(*this, "object", KWLoc);
   if (Ty.isNull())
     return ExprError();
 
   return new (Context) CXXReflectExpr(KWLoc, Ty, R, LPLoc, RPLoc, VK_RValue, 
-                                      false, IsValueDependent, IsValueDependent, 
-                                      false);
+                                      /*isTypeDependent=*/false, 
+                                      /*isValueDependent=*/IsValueDependent, 
+                                      /*isInstDependent=*/IsValueDependent, 
+                                      /*containsUnexpandedPacks=*/false);
 }
 
 // Convert each operand to an rvalue.
